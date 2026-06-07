@@ -1,61 +1,168 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cadastro - Bet Dá Sorte</title>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #1a1a1a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { background-color: #333; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); width: 100%; max-width: 350px; text-align: center; }
-        h2 { color: #00ff88; }
-        input { width: 90%; padding: 10px; margin: 10px 0; border: none; border-radius: 4px; }
-        button { background-color: #00ff88; color: #1a1a1a; border: none; padding: 10px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 4px; margin-top: 10px; }
-        button:hover { background-color: #00cc6a; }
-        .link { margin-top: 15px; display: block; color: #aaa; text-decoration: none; font-size: 14px; }
-        .link:hover { color: white; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro — Bet Dá Sorte</title>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #0A192F;
+      --panel:   #112240;
+      --border:  #1a3a6e;
+      --accent:  #FFD700;
+      --accent-d:#cc9200;
+      --text:    #e8edf5;
+      --muted:   #4a7fa5;
+      --error:   #FF4C4C;
+      --radius:  10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Archivo', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background-image: radial-gradient(ellipse at 60% 0%, rgba(255,215,0,0.04) 0%, transparent 60%),
+                        radial-gradient(ellipse at 10% 100%, rgba(0,110,230,0.06) 0%, transparent 50%);
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .logo-wrap { text-align: center; margin-bottom: 28px; }
+    .logo-wrap img { max-width: 150px; height: auto; }
+    .page-title {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 18px;
+      color: var(--accent);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .field { margin-bottom: 14px; }
+    label {
+      display: block;
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 13px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: 'Archivo', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: var(--accent); }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      margin-top: 8px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 14px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 4px 0 var(--accent-d);
+      transition: all 0.1s;
+    }
+    .btn:hover { background: #ffe033; }
+    .btn:active { transform: translateY(4px); box-shadow: none; }
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 24px 0;
+      color: var(--border);
+      font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .link-sec {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .link-sec a {
+      color: var(--accent);
+      text-decoration: none;
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+    .link-sec a:hover { text-decoration: underline; }
+  </style>
 </head>
 <body>
-
-    <div class="container">
-        <h2>Criar Conta</h2>
-        <form id="formCadastro">
-            <input type="text" id="nome" placeholder="Nome de Usuário" required>
-            <input type="password" id="senha" placeholder="Senha" minlength="4" required>
-            <input type="password" id="confirmaSenha" placeholder="Confirmar Senha" minlength="4" required>
-            <button type="submit">Cadastrar</button>
-        </form>
-        <a href="index.html" class="link">Já tem conta? Faça Login</a>
+  <div class="card">
+    <div class="logo-wrap">
+      <img src="logobetdasorte.png" alt="Bet Dá Sorte">
     </div>
+    <div class="page-title">Criar Conta</div>
 
-    <script>
-        document.getElementById('formCadastro').addEventListener('submit', function(e) {
-            e.preventDefault(); // Impede a página de recarregar
-            
-            const nome = document.getElementById('nome').value.trim();
-            const senha = document.getElementById('senha').value;
-            const confirmaSenha = document.getElementById('confirmaSenha').value;
+    <form id="formCadastro">
+      <div class="field">
+        <label>Usuário</label>
+        <input type="text" id="nome" placeholder="Escolha um nome de usuário" required>
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="senha" placeholder="Mínimo 4 caracteres" minlength="4" required>
+      </div>
+      <div class="field">
+        <label>Confirmar Senha</label>
+        <input type="password" id="confirmaSenha" placeholder="Repita a senha" minlength="4" required>
+      </div>
+      <button type="submit" class="btn">Cadastrar</button>
+    </form>
 
-            if (senha !== confirmaSenha) {
-                alert("As senhas não coincidem. Tente novamente, fera!");
-                return;
-            }
+    <div class="divider">ou</div>
 
-            // Puxa usuários antigos ou cria uma lista vazia
-            let usuarios = JSON.parse(localStorage.getItem('betUsuarios')) || {};
+    <div class="link-sec">
+      Já tem conta? <a href="index.html">Faça login</a>
+    </div>
+  </div>
 
-            if (usuarios[nome]) {
-                alert("Esse nome de usuário já existe!");
-                return;
-            }
+  <script>
+    document.getElementById('formCadastro').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const nome         = document.getElementById('nome').value.trim();
+      const senha        = document.getElementById('senha').value;
+      const confirmaSenha = document.getElementById('confirmaSenha').value;
 
-            // Salva o novo usuário
-            usuarios[nome] = senha;
-            localStorage.setItem('betUsuarios', JSON.stringify(usuarios));
+      if (senha !== confirmaSenha) { alert('As senhas não coincidem.'); return; }
 
-            alert("Cadastro realizado com sucesso! Agora é só fazer login.");
-            window.location.href = "index.html";
-        });
-    </script>
+      let usuarios = JSON.parse(localStorage.getItem('betUsuarios')) || {};
+      if (usuarios[nome]) { alert('Esse nome de usuário já existe.'); return; }
+
+      usuarios[nome] = senha;
+      localStorage.setItem('betUsuarios', JSON.stringify(usuarios));
+      alert('Cadastro realizado! Agora é só fazer login.');
+      window.location.href = 'index.html';
+    });
+  </script>
 </body>
 </html>
