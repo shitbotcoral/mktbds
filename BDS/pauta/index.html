@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAUTA BDS 4.0</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body, input, button, div, label, textarea, select {
+      font-family: 'Archivo Black', sans-serif;
+      text-transform: uppercase;
+    }
+
+    body {
+      background-color: #02122c;
+      color: #ffffff;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+      padding-bottom: 120px;
+    }
+
+    #app-container {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    #logo-header {
+      width: 100%;
+      max-width: 250px;
+      margin: 0 auto 20px auto;
+      display: none;
+    }
+
+    /* ===== BLOCOS BASE ===== */
+    .bloco-azul {
+      background-color: #00468b;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      height: 60px;
+      font-size: 16px;
+      text-align: center;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      line-height: 1.2;
+      cursor: pointer;
+      transition: all 0.1s ease;
+      box-shadow: 0 4px 0 #002244;
+      letter-spacing: 1px;
+    }
+    .bloco-azul:active { transform: translateY(4px); box-shadow: 0 0 0 #002244; }
+
+    input[type="radio"], input[type="checkbox"] { display: none; }
+
+    input[type="radio"]:checked + .bloco-azul,
+    input[type="checkbox"]:checked + .bloco-azul {
+      background-color: #006ee6;
+      outline: 3px solid #ffb700;
+      box-shadow: 0 4px 0 #cc9200;
+      color: #ffb700;
+    }
+
+    input[type="text"].bloco-azul {
+      cursor: text;
+      padding: 0 15px;
+      outline: none;
+      flex-direction: row;
+    }
+    input[type="text"].bloco-azul::placeholder { color: #6a95c3; }
+    input[type="text"].bloco-azul:focus {
+      background-color: #005bb5;
+      outline: 3px solid #ffb700;
+    }
+    input[type="text"].bloco-azul.campo-erro {
+      outline: 3px solid #ff4444;
+      background-color: #3a0000;
+    }
+
+    textarea#direcionamento {
+      height: 100px;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+      font-size: 14px;
+      text-transform: uppercase !important;
+      text-align: left;
+      padding: 15px;
+      resize: none;
+      cursor: text;
+      outline: none;
+    }
+    textarea#direcionamento::placeholder {
+      color: #6a95c3;
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 14px;
+      text-align: center;
+    }
+    textarea#direcionamento:focus {
+      background-color: #005bb5;
+      outline: 3px solid #ffb700;
+    }
+
+    /* ===== LAYOUTS ===== */
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    .row-assunto {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    /* ===== AUTOCOMPLETE ===== */
+    .autocomplete-wrapper { position: relative; flex: 1; }
+    .autocomplete-items {
+      position: absolute; border: 2px solid #00468b; z-index: 99;
+      top: 100%; left: 0; right: 0; border-radius: 8px; overflow-y: auto;
+      max-height: 180px; background-color: #02122c; display: none; margin-top: 5px;
+    }
+    .autocomplete-items div { padding: 15px; cursor: pointer; font-size: 16px; border-bottom: 1px solid #00468b; color: white; }
+    .autocomplete-items div:hover { background-color: #00468b; }
+    .autocomplete-active { background-color: #006ee6 !important; color: #ffb700 !important; }
+    .cat-label { font-size: 13px; }
+
+    /* ===== BOTÃO ADICIONAR ===== */
+    .btn-anim-wrapper { position: relative; border-radius: 10px; margin-top: 5px; }
+    .btn-anim-wrapper.loading { padding: 3px; overflow: hidden; }
+    .btn-anim-wrapper.loading::before {
+      content: ""; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: conic-gradient(from 0deg, transparent 70%, #ffb700 100%);
+      animation: girarCometa 0.8s linear infinite; z-index: 0;
+    }
+    @keyframes girarCometa { to { transform: rotate(360deg); } }
+
+    .btn-adicionar {
+      position: relative; z-index: 1; background-color: #ffb700; color: #02122c;
+      border: none; border-radius: 8px; height: 65px; font-size: 24px; cursor: pointer;
+      box-shadow: 0 5px 0 #cc9200; transition: all 0.1s ease; letter-spacing: 1px; width: 100%;
+    }
+    .btn-adicionar:active { transform: translateY(5px); box-shadow: 0 0 0 #cc9200; }
+    .btn-anim-wrapper.loading .btn-adicionar { background-color: #002244; color: #ffb700; box-shadow: none; transform: none; }
+    .btn-sincronizado { background-color: #ffb700 !important; color: #02122c !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 0 #cc9200 !important; }
+
+    /* ===== TABS ===== */
+    .tabs-container { display: flex; gap: 10px; margin-top: 20px; }
+    .tab-btn {
+      flex: 1; background-color: #002244; color: #6a95c3; border: 2px solid #00468b;
+      border-radius: 8px; padding: 15px; font-size: 16px; cursor: pointer; transition: 0.2s;
+    }
+    .tab-btn.active { background-color: #006ee6; color: #ffffff; border-color: #ffb700; box-shadow: 0 4px 0 #cc9200; }
+
+    /* ===== VIEWS ===== */
+    #view-inicio { display: block; }
+    #view-cronograma { display: none; flex-direction: column; gap: 10px; }
+
+    /* ===== CRONOGRAMA ===== */
+    .grupo-dia { margin-bottom: 20px; }
+    .btn-lixeira-container { display: flex; justify-content: flex-end; margin-bottom: 5px; }
+    .btn-limpar-crono {
+      background-color: #cc0000; color: #ffffff; border: none; border-radius: 6px;
+      width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;
+      cursor: pointer; transition: 0.1s ease; box-shadow: 0 3px 0 #880000;
+    }
+    .btn-limpar-crono:active { transform: translateY(3px); box-shadow: 0 0 0 #880000; }
+    .btn-limpar-crono svg { width: 20px; height: 20px; }
+
+    .data-header { background-color: #ffb700; color: #02122c; padding: 5px 15px; border-radius: 6px; display: inline-block; font-size: 14px; margin-bottom: 10px; }
+
+    .card-post {
+      background-color: #003366; border-left: 6px solid #00a8ff; padding: 15px; border-radius: 8px;
+      margin-bottom: 10px; transition: 0.1s; display: flex; flex-direction: column; gap: 5px;
+      position: relative;
+    }
+    .card-hora { color: #ffb700; font-size: 14px; }
+    .card-titulo { color: #ffffff; font-size: 16px; }
+    .card-assunto { color: #6a95c3; font-size: 12px; }
+
+    .card-acoes {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .btn-card-acao {
+      flex: 1;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 5px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: 'Archivo Black', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.1s ease;
+    }
+    .btn-ver { background-color: #004a8f; color: #ffffff; box-shadow: 0 3px 0 #002244; }
+    .btn-ver:active { transform: translateY(3px); box-shadow: 0 0 0 #002244; }
+    .btn-editar { background-color: #e67e00; color: #ffffff; box-shadow: 0 3px 0 #994f00; }
+    .btn-editar:active { transform: translateY(3px); box-shadow: 0 0 0 #994f00; }
+    .btn-deletar { background-color: #cc0000; color: #ffffff; box-shadow: 0 3px 0 #880000; }
+    .btn-deletar:active { transform: translateY(3px); box-shadow: 0 0 0 #880000; }
+
+    .sem-post { text-align: center; color: #6a95c3; padding: 30px 0; }
+
+    /* ===== MODAL VISUALIZAR ===== */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(2, 18, 44, 0.9); z-index: 1000;
+      display: none; justify-content: center; align-items: center; padding: 20px;
+    }
+    .modal-box {
+      background-color: #00468b; border: 3px solid #ffb700; border-radius: 12px;
+      width: 100%; max-width: 400px; padding: 25px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal-header {
+      color: #ffb700; font-size: 18px; text-align: center; margin-bottom: 15px;
+      border-bottom: 2px solid #002244; padding-bottom: 15px; line-height: 1.4;
+    }
+    .modal-content {
+      color: #ffffff; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .modal-destaque { color: #ffb700; font-family: 'Archivo Black', sans-serif; }
+    .btn-fechar-modal {
+      background-color: #cc0000; color: #ffffff; border: none; padding: 15px;
+      width: 100%; border-radius: 8px; margin-top: 20px; cursor: pointer; font-size: 18px;
+      box-shadow: 0 4px 0 #880000; font-family: 'Archivo Black', sans-serif; text-transform: uppercase;
+    }
+    .btn-fechar-modal:active { transform: translateY(4px); box-shadow: 0 0 0 #880000; }
+
+    /* ===== MODAL EDITAR ===== */
+    #modal-editar { display: none; }
+    .modal-editar-box {
+      background-color: #02122c; border: 3px solid #e67e00; border-radius: 12px;
+      width: 100%; max-width: 400px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal-editar-titulo {
+      color: #e67e00; font-size: 18px; text-align: center; margin-bottom: 20px;
+      border-bottom: 2px solid #e67e00; padding-bottom: 15px;
+    }
+    .edit-label { color: #6a95c3; font-size: 11px; margin-bottom: 5px; display: block; }
+    .edit-campo { margin-bottom: 15px; }
+    .edit-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+
+    .edit-radio-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+    .edit-radio-group .bloco-azul { height: 50px; font-size: 13px; }
+
+    .edit-select {
+      background-color: #00468b; color: #ffffff; border: none; border-radius: 8px;
+      height: 60px; font-size: 14px; width: 100%; padding: 0 15px; outline: none;
+      font-family: 'Archivo Black', sans-serif; text-transform: uppercase; cursor: pointer;
+      box-shadow: 0 4px 0 #002244;
+    }
+    .edit-select:focus { outline: 3px solid #ffb700; background-color: #005bb5; }
+
+    .edit-textarea {
+      background-color: #00468b; color: #ffffff; border: none; border-radius: 8px;
+      width: 100%; padding: 15px; font-family: Arial, sans-serif; font-weight: bold;
+      font-size: 14px; text-transform: uppercase; resize: none; outline: none;
+      box-shadow: 0 4px 0 #002244; min-height: 80px;
+    }
+    .edit-textarea:focus { outline: 3px solid #ffb700; background-color: #005bb5; }
+
+    .edit-checkbox-row { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+    .edit-checkbox-label { color: #6a95c3; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+    .edit-checkbox-label input[type="checkbox"] { display: block; width: 20px; height: 20px; cursor: pointer; accent-color: #ffb700; }
+
+    .edit-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .btn-salvar-edit {
+      background-color: #e67e00; color: #ffffff; border: none; border-radius: 8px;
+      padding: 15px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 0 #994f00;
+      font-family: 'Archivo Black', sans-serif; text-transform: uppercase;
+    }
+    .btn-salvar-edit:active { transform: translateY(4px); box-shadow: 0 0 0 #994f00; }
+    .btn-cancelar-edit {
+      background-color: #333; color: #ffffff; border: none; border-radius: 8px;
+      padding: 15px; font-size: 16px; cursor: pointer; box-shadow: 0 4px 0 #111;
+      font-family: 'Archivo Black', sans-serif; text-transform: uppercase;
+    }
+    .btn-cancelar-edit:active { transform: translateY(4px); box-shadow: 0 0 0 #111; }
+
+    /* ===== TOAST ===== */
+    #toast {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background-color: #006ee6; color: #ffffff; padding: 15px 25px; border-radius: 10px;
+      font-size: 14px; z-index: 9999; transition: transform 0.3s ease; white-space: nowrap;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.4); border: 2px solid #ffb700;
+      font-family: 'Archivo Black', sans-serif; text-transform: uppercase;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.erro { background-color: #cc0000; border-color: #ff4444; }
+    #toast.sucesso { background-color: #006600; border-color: #00cc00; }
+    #toast.trello { background-color: #0052cc; border-color: #4c9aff; }
+
+    /* ===== BADGE TRELLO ===== */
+    .badge-trello {
+      display: inline-block; background-color: #0052cc; color: #fff;
+      font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="app-container">
+    <img id="logo-header" src="" alt="Logo BDS">
+
+    <!-- ===== VIEW FORMULÁRIO ===== -->
+    <div id="view-inicio">
+      <form id="formPauta" onsubmit="event.preventDefault();">
+
+        <div class="row-2" style="margin-bottom: 15px;">
+          <div>
+            <input type="radio" id="canal-sorte" name="canal" value="SORTE TV">
+            <label for="canal-sorte" class="bloco-azul">SORTE TV</label>
+          </div>
+          <div>
+            <input type="radio" id="canal-squad" name="canal" value="SQUAD DA SORTE">
+            <label for="canal-squad" class="bloco-azul">SQUAD</label>
+          </div>
+        </div>
+
+        <div class="row-2" style="margin-bottom: 15px;">
+          <input type="text" id="data" name="data" class="bloco-azul" maxlength="5" placeholder="DATA (DD/MM)" required autocomplete="off">
+          <input type="text" id="hora" name="hora" class="bloco-azul" maxlength="5" placeholder="HORA (HH:MM)" required autocomplete="off">
+        </div>
+
+        <input type="text" id="titulo" name="titulo" class="bloco-azul" style="margin-bottom: 15px;" placeholder="TÍTULO DO POST" required autocomplete="off">
+
+        <div class="row-assunto">
+          <div class="autocomplete-wrapper">
+            <input type="text" id="assunto" name="assunto" class="bloco-azul" placeholder="ASSUNTO" required autocomplete="off">
+            <div id="lista-assuntos" class="autocomplete-items"></div>
+          </div>
+          <div style="width: 60px;">
+            <input type="checkbox" id="promo-toggle" name="promocao">
+            <label for="promo-toggle" class="bloco-azul" style="font-size: 11px; padding: 0;">PROMO</label>
+          </div>
+        </div>
+
+        <div class="row-2" style="margin-bottom: 15px; row-gap: 15px;">
+          <div>
+            <input type="radio" id="cat-cf" name="categoria" value="CONTEUDO FEED">
+            <label for="cat-cf" class="bloco-azul cat-label">CONTEUDO<br>FEED</label>
+          </div>
+          <div>
+            <input type="radio" id="cat-nf" name="categoria" value="NOTICIA FEED">
+            <label for="cat-nf" class="bloco-azul cat-label">NOTICIA<br>FEED</label>
+          </div>
+          <div>
+            <input type="radio" id="cat-cr" name="categoria" value="CONTEUDO REELS">
+            <label for="cat-cr" class="bloco-azul cat-label">CONTEUDO<br>REELS</label>
+          </div>
+          <div>
+            <input type="radio" id="cat-nr" name="categoria" value="NOTICIA REELS">
+            <label for="cat-nr" class="bloco-azul cat-label">NOTICIA<br>REELS</label>
+          </div>
+        </div>
+
+        <textarea id="direcionamento" name="direcionamento" class="bloco-azul" style="margin-bottom: 15px;" placeholder="DIRECIONAMENTO" autocomplete="off"></textarea>
+
+        <div class="btn-anim-wrapper" id="btnWrapper">
+          <button type="button" class="btn-adicionar" id="btnAdicionar" onclick="processarEnvio()">ADICIONAR</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ===== VIEW CRONOGRAMA ===== -->
+    <div id="view-cronograma">
+      <div class="btn-lixeira-container">
+        <button type="button" class="btn-limpar-crono" onclick="limparCronograma()" title="Limpar Cronograma">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
+      <div id="lista-cronograma"></div>
+    </div>
+
+    <!-- ===== TABS ===== -->
+    <div class="tabs-container">
+      <button class="tab-btn active" id="btnTabInicio" onclick="mudarAba('inicio')">FORMULÁRIO</button>
+      <button class="tab-btn" id="btnTabCronograma" onclick="mudarAba('cronograma')">CRONOGRAMA</button>
+    </div>
+  </div>
+
+  <!-- ===== MODAL VISUALIZAR ===== -->
+  <div class="modal-overlay" id="meuModal">
+    <div class="modal-box">
+      <div class="modal-header" id="modal-header">TITULO AQUI</div>
+      <div class="modal-content" id="modal-body">CONTEUDO AQUI</div>
+      <button class="btn-fechar-modal" onclick="fecharModal()">FECHAR</button>
+    </div>
+  </div>
+
+  <!-- ===== MODAL EDITAR ===== -->
+  <div class="modal-overlay" id="modal-editar">
+    <div class="modal-editar-box">
+      <div class="modal-editar-titulo">✏️ EDITAR POST</div>
+
+      <div class="edit-campo">
+        <span class="edit-label">CANAL</span>
+        <div class="edit-radio-group">
+          <div>
+            <input type="radio" id="edit-canal-sorte" name="edit-canal" value="SORTE TV">
+            <label for="edit-canal-sorte" class="bloco-azul" style="height:50px;font-size:13px;">SORTE TV</label>
+          </div>
+          <div>
+            <input type="radio" id="edit-canal-squad" name="edit-canal" value="SQUAD DA SORTE">
+            <label for="edit-canal-squad" class="bloco-azul" style="height:50px;font-size:13px;">SQUAD</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="edit-row-2">
+        <div class="edit-campo" style="margin:0;">
+          <span class="edit-label">DATA</span>
+          <input type="text" id="edit-data" class="bloco-azul" maxlength="5" placeholder="DD/MM" autocomplete="off">
+        </div>
+        <div class="edit-campo" style="margin:0;">
+          <span class="edit-label">HORA</span>
+          <input type="text" id="edit-hora" class="bloco-azul" maxlength="5" placeholder="HH:MM" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="edit-campo">
+        <span class="edit-label">TÍTULO</span>
+        <input type="text" id="edit-titulo" class="bloco-azul" placeholder="TÍTULO DO POST" autocomplete="off">
+      </div>
+
+      <div class="edit-campo">
+        <span class="edit-label">ASSUNTO</span>
+        <input type="text" id="edit-assunto" class="bloco-azul" placeholder="ASSUNTO" autocomplete="off">
+      </div>
+
+      <div class="edit-campo">
+        <span class="edit-label">CATEGORIA</span>
+        <select id="edit-categoria" class="edit-select">
+          <option value="CONTEUDO FEED">CONTEUDO FEED</option>
+          <option value="NOTICIA FEED">NOTICIA FEED</option>
+          <option value="CONTEUDO REELS">CONTEUDO REELS</option>
+          <option value="NOTICIA REELS">NOTICIA REELS</option>
+        </select>
+      </div>
+
+      <div class="edit-checkbox-row">
+        <label class="edit-checkbox-label">
+          <input type="checkbox" id="edit-promo"> PROMOÇÃO
+        </label>
+      </div>
+
+      <div class="edit-campo">
+        <span class="edit-label">DIRECIONAMENTO</span>
+        <textarea id="edit-direcionamento" class="edit-textarea" rows="3" placeholder="DIRECIONAMENTO"></textarea>
+      </div>
+
+      <div class="edit-btns">
+        <button class="btn-salvar-edit" onclick="salvarEdicao()">✔ SALVAR</button>
+        <button class="btn-cancelar-edit" onclick="fecharModalEditar()">✖ CANCELAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TOAST ===== -->
+  <div id="toast"></div>
+
+  <script>
+    // =====================================================
+    // CONFIGURAÇÕES — EDITE AQUI SE NECESSÁRIO
+    // =====================================================
+    const CONFIG = {
+      URL_PLANILHA: "https://script.google.com/macros/s/AKfycbzY9MI4F_k3kHKySAFseTrUOia-OrgtatCBVHp2KBVSvtP3usJgLZR32SLcUk0Nc4XbDA/exec",
+      TRELLO_KEY: "af31fbdd5645cb79b866a7329a2c26d1",
+      TRELLO_TOKEN: "ATTA19cac2fddf8770fe1f5ab10fd380f864993790c3a8fa5f85fd82a5f40052e36b08ADD7AC",
+      TRELLO_LIST_ID: "68e80f4686f239d2aeca1f32"
+    };
+
+    // =====================================================
+    // DADOS LOCAIS
+    // =====================================================
+    let dbPosts = JSON.parse(localStorage.getItem('bdsPosts')) || [];
+    let indexEditando = -1;
+
+    // =====================================================
+    // LOGO
+    // =====================================================
+    const extensoes = ['png', 'jpg', 'jpeg', 'webp'];
+    function testarLogos(index) {
+      if (index >= extensoes.length) return;
+      const img = document.getElementById('logo-header');
+      const tempImg = new Image();
+      tempImg.src = './bg.' + extensoes[index];
+      tempImg.onload = function() { img.src = tempImg.src; img.style.display = 'block'; };
+      tempImg.onerror = function() { testarLogos(index + 1); };
+    }
+    testarLogos(0);
+
+    // =====================================================
+    // TOAST
+    // =====================================================
+    function mostrarToast(msg, tipo = '', duracao = 2500) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'show ' + tipo;
+      setTimeout(() => { t.className = ''; }, duracao);
+    }
+
+    // =====================================================
+    // STORAGE
+    // =====================================================
+    function salvarPostNoLocal(post) {
+      dbPosts.push(post);
+      localStorage.setItem('bdsPosts', JSON.stringify(dbPosts));
+    }
+
+    function atualizarStorage() {
+      localStorage.setItem('bdsPosts', JSON.stringify(dbPosts));
+    }
+
+    function limparCronograma() {
+      if (confirm("CERTEZA QUE DESEJA APAGAR OS CARDS SALVOS AQUI DO SEU NAVEGADOR?")) {
+        dbPosts = [];
+        localStorage.removeItem('bdsPosts');
+        renderizarCronograma();
+      }
+    }
+
+    // =====================================================
+    // VALIDAÇÕES
+    // =====================================================
+    function validarData(val) {
+      const regex = /^\d{2}\/\d{2}$/;
+      if (!regex.test(val)) return false;
+      const [dia, mes] = val.split('/').map(Number);
+      return dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12;
+    }
+
+    function validarHora(val) {
+      const regex = /^\d{2}H\d{2}$/i;
+      if (!regex.test(val)) return false;
+      const [h, m] = val.toUpperCase().split('H').map(Number);
+      return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+    }
+
+    function formatarData(v) {
+      v = v.replace(/\D/g, '');
+      if (v.length >= 4) {
+        const dia = parseInt(v.substring(0, 2));
+        const mes = parseInt(v.substring(2, 4));
+        if (dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12) {
+          return v.substring(0, 2) + '/' + v.substring(2, 4);
+        }
+        return null;
+      }
+      return null;
+    }
+
+    function formatarHora(v) {
+      v = v.replace(/\D/g, '');
+      if (v.length === 1 || v.length === 2) {
+        const h = parseInt(v);
+        if (h <= 23) return (v.length === 1 ? '0' + v : v) + 'H00';
+        return null;
+      } else if (v.length === 3 || v.length === 4) {
+        const hStr = v.length === 3 ? '0' + v.substring(0, 1) : v.substring(0, 2);
+        const mStr = v.length === 3 ? v.substring(1, 3) : v.substring(2, 4);
+        if (parseInt(hStr) <= 23 && parseInt(mStr) <= 59) return hStr + 'H' + mStr;
+        return null;
+      }
+      return null;
+    }
+
+    document.getElementById('data').addEventListener('blur', function() {
+      const result = formatarData(this.value);
+      if (result) {
+        this.value = result;
+        this.classList.remove('campo-erro');
+      } else if (this.value) {
+        this.classList.add('campo-erro');
+        mostrarToast('DATA INVÁLIDA! USE DD/MM', 'erro');
+        this.value = '';
+      }
+    });
+
+    document.getElementById('hora').addEventListener('blur', function() {
+      const result = formatarHora(this.value);
+      if (result) {
+        this.value = result;
+        this.classList.remove('campo-erro');
+      } else if (this.value) {
+        this.classList.add('campo-erro');
+        mostrarToast('HORA INVÁLIDA! USE HHMM (EX: 1300)', 'erro');
+        this.value = '';
+      }
+    });
+
+    // =====================================================
+    // AUTOCOMPLETE
+    // =====================================================
+    const listaAssuntos = ["BRASIL", "BRASILEIRAO", "CASSINO", "CHAMPIONS", "COBERTURA", "COPA", "DESAFIO", "FUT EUROPA", "FUT MUNDO", "FUT SULAMERICA", "INFLUENCIADOR", "INSTITUCIONAL", "LIVE", "MAGUARY", "PAYSANDU", "SANTA CRUZ", "VILA NOVA"];
+    const inputAssunto = document.getElementById('assunto');
+    const divListaAuto = document.getElementById('lista-assuntos');
+    let focoAtual = -1;
+
+    function renderizarLista(filtro = '') {
+      divListaAuto.innerHTML = ''; let count = 0;
+      listaAssuntos.forEach(item => {
+        if (item.includes(filtro.toUpperCase())) {
+          const el = document.createElement('div');
+          el.textContent = item;
+          el.addEventListener('click', () => { inputAssunto.value = item; fecharLista(); });
+          divListaAuto.appendChild(el); count++;
+        }
+      });
+      divListaAuto.style.display = count > 0 ? 'block' : 'none';
+    }
+
+    function fecharLista() { divListaAuto.style.display = 'none'; focoAtual = -1; }
+
+    function addAtivo(items) {
+      if (!items || items.length === 0) return;
+      Array.from(items).forEach(i => i.classList.remove('autocomplete-active'));
+      if (focoAtual >= items.length) focoAtual = 0;
+      if (focoAtual < 0) focoAtual = items.length - 1;
+      items[focoAtual].classList.add('autocomplete-active');
+      items[focoAtual].scrollIntoView({ block: 'nearest' });
+    }
+
+    inputAssunto.addEventListener('click', () => renderizarLista(''));
+    inputAssunto.addEventListener('input', function() { focoAtual = -1; renderizarLista(this.value); });
+    inputAssunto.addEventListener('keydown', function(e) {
+      const items = divListaAuto.getElementsByTagName('div');
+      if (divListaAuto.style.display !== 'block' && (e.key === 'ArrowDown' || e.key === 'Tab')) { renderizarLista(this.value); return; }
+      if (e.key === 'ArrowDown' || e.key === 'Tab') { e.preventDefault(); focoAtual++; addAtivo(items); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); focoAtual--; addAtivo(items); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (focoAtual > -1 && items[focoAtual]) items[focoAtual].click(); else if (items.length > 0) items[0].click(); }
+    });
+    document.addEventListener('click', e => { if (e.target !== inputAssunto && e.target !== divListaAuto) fecharLista(); });
+
+    // =====================================================
+    // TRELLO
+    // =====================================================
+    async function criarCardTrello(post) {
+      try {
+        const assuntoExib = post.assunto + (post.isPromo ? ' PROMO' : '');
+        const titulo = `${post.canal} | ${assuntoExib} - ${post.titulo} [${post.data} - ${post.hora}]`;
+
+        const descricao = [
+          `CANAL: ${post.canal}`,
+          `AGENDAMENTO: ${post.data} ÀS ${post.hora}`,
+          `CATEGORIA: ${post.categoria}`,
+          `ASSUNTO: ${assuntoExib}`,
+          '',
+          `DIRECIONAMENTO:`,
+          post.direcionamento || 'NENHUM DIRECIONAMENTO INSERIDO.'
+        ].join('\n');
+
+        // Data de entrega: data vigente às 17:00 no fuso de Brasília
+        const agora = new Date();
+        const due = new Date(
+          agora.getFullYear(),
+          agora.getMonth(),
+          agora.getDate(),
+          20, 0, 0 // 17h Brasília = 20h UTC
+        ).toISOString();
+
+        // Todos os membros do board
+        const membros = [
+          '65a67a55526b51ed32720aa1',
+          '678e7838e09f883754186aac',
+          '67b37c2566aeea75532fd6a7',
+          '68237d794f894f3376f18a4d',
+          '688a390bbb9c27344135f8ce',
+          '67d1da89cb1b4d81df684622',
+          '69ef696ed4eb7735eac76c52',
+          '63610ab1ad4010038cd536a4',
+          '6516aa5a10ba65ffed1bae5d',
+          '6967ca46aaca3a3f76a642f8'
+        ];
+
+        const urlBase = `https://api.trello.com/1/cards?key=${CONFIG.TRELLO_KEY}&token=${CONFIG.TRELLO_TOKEN}`;
+        const body = {
+          idList: CONFIG.TRELLO_LIST_ID,
+          name: titulo,
+          desc: descricao,
+          due: due,
+          idMembers: membros
+        };
+
+        const resp = await fetch(urlBase, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (!resp.ok) {
+          mostrarToast('⚠️ ERRO AO CRIAR CARD NO TRELLO', 'erro', 3000);
+          return false;
+        }
+
+        const cardData = await resp.json();
+        const cardId = cardData.id;
+
+        // Capa por categoria
+        const cat = post.categoria.toUpperCase();
+        let corCapa = null;
+        if (cat === 'CONTEUDO FEED') corCapa = 'lime';
+        else if (cat === 'CONTEUDO REELS' || cat === 'NOTICIA REELS') corCapa = 'purple';
+
+        if (corCapa) {
+          await fetch(`https://api.trello.com/1/cards/${cardId}/cover?key=${CONFIG.TRELLO_KEY}&token=${CONFIG.TRELLO_TOKEN}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ color: corCapa, brightness: 'light', size: 'normal' })
+          });
+        }
+
+        mostrarToast('✅ CARD CRIADO NO TRELLO!', 'trello', 3000);
+        return true;
+
+      } catch (err) {
+        mostrarToast('⚠️ ERRO DE CONEXÃO COM TRELLO', 'erro', 3000);
+        return false;
+      }
+    }
+
+    // =====================================================
+    // ENVIO PRINCIPAL
+    // =====================================================
+    async function processarEnvio() {
+      const form = document.getElementById('formPauta');
+      const canal = document.querySelector('input[name="canal"]:checked');
+      const categoria = document.querySelector('input[name="categoria"]:checked');
+      const dataVal = form.data.value.trim();
+      const horaVal = form.hora.value.trim();
+      const tituloVal = form.titulo.value.trim();
+      const assuntoVal = form.assunto.value.trim();
+      const dir = document.getElementById('direcionamento').value.trim();
+      const isPromo = document.getElementById('promo-toggle').checked;
+
+      // Validações
+      if (!canal) { mostrarToast('SELECIONE O CANAL!', 'erro'); return; }
+      if (!categoria) { mostrarToast('SELECIONE A CATEGORIA!', 'erro'); return; }
+      if (!dataVal || !validarData(dataVal)) { mostrarToast('PREENCHA UMA DATA VÁLIDA!', 'erro'); document.getElementById('data').classList.add('campo-erro'); return; }
+      if (!horaVal || !validarHora(horaVal)) { mostrarToast('PREENCHA UMA HORA VÁLIDA!', 'erro'); document.getElementById('hora').classList.add('campo-erro'); return; }
+      if (!tituloVal) { mostrarToast('PREENCHA O TÍTULO!', 'erro'); return; }
+      if (!assuntoVal) { mostrarToast('PREENCHA O ASSUNTO!', 'erro'); return; }
+
+      const dadosPost = {
+        canal: canal.value.toUpperCase(),
+        data: dataVal.toUpperCase(),
+        hora: horaVal.toUpperCase(),
+        titulo: tituloVal.toUpperCase(),
+        assunto: assuntoVal.toUpperCase(),
+        categoria: categoria.value.toUpperCase(),
+        direcionamento: dir.toUpperCase(),
+        isPromo: isPromo
+      };
+
+      const btn = document.getElementById('btnAdicionar');
+      const wrapper = document.getElementById('btnWrapper');
+      btn.disabled = true;
+      btn.innerText = 'CARREGANDO...';
+      wrapper.classList.add('loading');
+
+      // Envio planilha
+      const urlCompleta = CONFIG.URL_PLANILHA + '?dados=' + encodeURIComponent(JSON.stringify(dadosPost));
+      try {
+        await fetch(urlCompleta, { method: 'GET', mode: 'no-cors' });
+      } catch (e) {}
+
+      // Envio Trello
+      await criarCardTrello(dadosPost);
+
+      wrapper.classList.remove('loading');
+      btn.classList.add('btn-sincronizado');
+      btn.innerText = 'SINCRONIZADO ✓';
+
+      salvarPostNoLocal(dadosPost);
+      limparFormulario(form, categoria);
+      abrirModal(dadosPost);
+
+      setTimeout(() => {
+        btn.classList.remove('btn-sincronizado');
+        btn.innerText = 'ADICIONAR';
+        btn.disabled = false;
+        form.hora.focus();
+      }, 2500);
+    }
+
+    function limparFormulario(form, categoria) {
+      form.hora.value = '';
+      form.titulo.value = '';
+      form.assunto.value = '';
+      document.getElementById('direcionamento').value = '';
+      document.getElementById('promo-toggle').checked = false;
+      if (categoria) categoria.checked = false;
+      document.getElementById('data').classList.remove('campo-erro');
+      document.getElementById('hora').classList.remove('campo-erro');
+    }
+
+    // =====================================================
+    // ABAS
+    // =====================================================
+    function mudarAba(aba) {
+      const vInicio = document.getElementById('view-inicio');
+      const vCronograma = document.getElementById('view-cronograma');
+      const bInicio = document.getElementById('btnTabInicio');
+      const bCronograma = document.getElementById('btnTabCronograma');
+
+      if (aba === 'inicio') {
+        vInicio.style.display = 'block';
+        vCronograma.style.display = 'none';
+        bInicio.classList.add('active');
+        bCronograma.classList.remove('active');
+      } else {
+        vInicio.style.display = 'none';
+        vCronograma.style.display = 'flex';
+        bInicio.classList.remove('active');
+        bCronograma.classList.add('active');
+        renderizarCronograma();
+      }
+    }
+
+    // =====================================================
+    // CRONOGRAMA
+    // =====================================================
+    function formatarTempoEmMinutos(horaStr) {
+      const partes = horaStr.split('H');
+      return (parseInt(partes[0]) || 0) * 60 + (parseInt(partes[1]) || 0);
+    }
+
+    function renderizarCronograma() {
+      const divLista = document.getElementById('lista-cronograma');
+      divLista.innerHTML = '';
+
+      if (dbPosts.length === 0) {
+        divLista.innerHTML = '<div class="sem-post">NENHUM POST AGENDADO AINDA.</div>';
+        return;
+      }
+
+      let postsPorData = {};
+      dbPosts.forEach((p, index) => {
+        if (!postsPorData[p.data]) postsPorData[p.data] = [];
+        postsPorData[p.data].push({ ...p, originalIndex: index });
+      });
+
+      Object.keys(postsPorData).sort().forEach(data => {
+        let postsDoDia = postsPorData[data];
+        postsDoDia.sort((a, b) => formatarTempoEmMinutos(a.hora) - formatarTempoEmMinutos(b.hora));
+
+        const grupo = document.createElement('div');
+        grupo.className = 'grupo-dia';
+        grupo.innerHTML = `<div class="data-header">${data}</div>`;
+
+        postsDoDia.forEach(post => {
+          const card = document.createElement('div');
+          card.className = 'card-post';
+          if (post.canal === 'SQUAD DA SORTE') card.style.borderLeftColor = '#ffb700';
+
+          let assuntoExib = post.assunto + (post.isPromo ? ' PROMO' : '');
+
+          card.innerHTML = `
+            <div class="card-hora">${post.hora} — ${post.canal}</div>
+            <div class="card-titulo">${post.titulo}</div>
+            <div class="card-assunto">${post.categoria} | ${assuntoExib}</div>
+            <div class="card-acoes">
+              <button class="btn-card-acao btn-ver" onclick="abrirModal(dbPosts[${post.originalIndex}])">👁 VER</button>
+              <button class="btn-card-acao btn-editar" onclick="abrirModalEditar(${post.originalIndex})">✏️ EDITAR</button>
+              <button class="btn-card-acao btn-deletar" onclick="deletarPost(${post.originalIndex})">🗑 DELETAR</button>
+            </div>
+          `;
+          grupo.appendChild(card);
+        });
+
+        divLista.appendChild(grupo);
+      });
+    }
+
+    // =====================================================
+    // DELETAR
+    // =====================================================
+    function deletarPost(index) {
+      if (confirm('DELETAR ESTE POST DO CRONOGRAMA LOCAL?')) {
+        dbPosts.splice(index, 1);
+        atualizarStorage();
+        renderizarCronograma();
+        mostrarToast('POST DELETADO!', 'erro');
+      }
+    }
+
+    // =====================================================
+    // MODAL VISUALIZAR
+    // =====================================================
+    function abrirModal(post) {
+      const modal = document.getElementById('meuModal');
+      const header = document.getElementById('modal-header');
+      const body = document.getElementById('modal-body');
+
+      const assuntoPopup = post.assunto + (post.isPromo ? ' PROMO' : '');
+      header.innerText = `${post.canal} | ${assuntoPopup} - ${post.titulo} [${post.data} - ${post.hora}]`;
+
+      body.innerHTML = `<span class="modal-destaque">CANAL:</span> ${post.canal}\n` +
+        `<span class="modal-destaque">AGENDAMENTO:</span> ${post.data} ÀS ${post.hora}\n` +
+        `<span class="modal-destaque">CATEGORIA:</span> ${post.categoria}\n` +
+        `<span class="modal-destaque">ASSUNTO:</span> ${assuntoPopup}\n\n` +
+        `<span class="modal-destaque">DIRECIONAMENTO:</span>\n${post.direcionamento || 'NENHUM DIRECIONAMENTO INSERIDO.'}`;
+
+      modal.style.display = 'flex';
+    }
+
+    function fecharModal() {
+      document.getElementById('meuModal').style.display = 'none';
+    }
+
+    // =====================================================
+    // MODAL EDITAR
+    // =====================================================
+    function abrirModalEditar(index) {
+      indexEditando = index;
+      const post = dbPosts[index];
+
+      // Canal
+      document.querySelectorAll('input[name="edit-canal"]').forEach(r => r.checked = false);
+      const canalRadio = document.querySelector(`input[name="edit-canal"][value="${post.canal}"]`);
+      if (canalRadio) canalRadio.checked = true;
+
+      // Campos texto
+      document.getElementById('edit-data').value = post.data;
+      document.getElementById('edit-hora').value = post.hora;
+      document.getElementById('edit-titulo').value = post.titulo;
+      document.getElementById('edit-assunto').value = post.assunto;
+      document.getElementById('edit-direcionamento').value = post.direcionamento || '';
+      document.getElementById('edit-promo').checked = post.isPromo || false;
+      document.getElementById('edit-categoria').value = post.categoria;
+
+      document.getElementById('modal-editar').style.display = 'flex';
+    }
+
+    function fecharModalEditar() {
+      document.getElementById('modal-editar').style.display = 'none';
+      indexEditando = -1;
+    }
+
+    function salvarEdicao() {
+      if (indexEditando === -1) return;
+
+      const canal = document.querySelector('input[name="edit-canal"]:checked');
+      if (!canal) { mostrarToast('SELECIONE O CANAL!', 'erro'); return; }
+
+      const dataVal = document.getElementById('edit-data').value.trim();
+      const horaVal = document.getElementById('edit-hora').value.trim();
+
+      if (!validarData(dataVal)) { mostrarToast('DATA INVÁLIDA!', 'erro'); return; }
+      if (!validarHora(horaVal)) { mostrarToast('HORA INVÁLIDA!', 'erro'); return; }
+
+      dbPosts[indexEditando] = {
+        ...dbPosts[indexEditando],
+        canal: canal.value,
+        data: dataVal,
+        hora: horaVal,
+        titulo: document.getElementById('edit-titulo').value.trim().toUpperCase(),
+        assunto: document.getElementById('edit-assunto').value.trim().toUpperCase(),
+        categoria: document.getElementById('edit-categoria').value,
+        direcionamento: document.getElementById('edit-direcionamento').value.trim().toUpperCase(),
+        isPromo: document.getElementById('edit-promo').checked
+      };
+
+      atualizarStorage();
+      fecharModalEditar();
+      renderizarCronograma();
+      mostrarToast('POST ATUALIZADO!', 'sucesso');
+    }
+  </script>
+</body>
+</html>
