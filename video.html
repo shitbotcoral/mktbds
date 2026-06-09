@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>VÍDEO BDS</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Fix SharedArrayBuffer no GitHub Pages -->
-  <script src="coi-serviceworker.min.js"></script>
-  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+
   <style>
     :root {
       --bg:      #02122c;
@@ -846,28 +844,32 @@
     hEnd.addEventListener('touchstart',   e => { handleDrag(hEnd, false); }, {passive:true});
   }
 
-  /* ─── FFmpeg: processar e exportar ─── */
-  let ffmpeg = null;
+  /* ─── FFmpeg 0.12 single-thread (sem SharedArrayBuffer) ─── */
+  let ffmpegInst = null;
 
   async function processarVideo() {
-    // Verifica se FFmpeg carregou
-    if (typeof FFmpeg === 'undefined') {
-      showToast('FFmpeg ainda não carregou. Recarregue a página.', 'erro');
-      return;
-    }
-
-    // Inicializa FFmpeg na primeira vez
-    if (!ffmpeg) {
-      const { createFFmpeg } = FFmpeg;
-      ffmpeg = createFFmpeg({
-        log: false,
-        corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
-        progress: ({ ratio }) => {
-          const pct = Math.round(ratio * 100);
+    // Inicializa FFmpeg na primeira vez via import dinâmico
+    if (!ffmpegInst) {
+      setMsg('Carregando FFmpeg...');
+      try {
+        const { FFmpeg }    = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/esm/index.js');
+        const { toBlobURL } = await import('https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js');
+        ffmpegInst = new FFmpeg();
+        ffmpegInst.on('progress', ({ progress }) => {
+          const pct = Math.round((progress || 0) * 100);
           document.getElementById('procPct').textContent = pct + '%';
           document.getElementById('procBar').style.width = pct + '%';
-        }
-      });
+        });
+        setMsg('Baixando core do FFmpeg (~30MB primeira vez)...');
+        await ffmpegInst.load({
+          coreURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',  'text/javascript'),
+          wasmURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm','application/wasm'),
+        });
+      } catch(err) {
+        document.getElementById('processingOverlay').classList.remove('active');
+        showToast('Erro ao carregar FFmpeg: ' + err.message, 'erro');
+        return;
+      }
     }
     if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return; }
 
@@ -881,10 +883,7 @@
 
     try {
       // Carrega FFmpeg se necessário
-      if (!ffmpeg.isLoaded()) {
-        setMsg('Baixando FFmpeg (primeira vez ~30MB)...');
-        await ffmpeg.load();
-      }
+
 
       // Gera imagem do overlay (layout + texto) no tamanho do vídeo nativo
       setMsg('Gerando overlay...');
@@ -921,8 +920,8 @@
       // Escreve arquivos no sistema de arquivos do FFmpeg
       setMsg('Carregando vídeo para processamento...');
       const videoArr = new Uint8Array(await videoFile.arrayBuffer());
-      ffmpeg.FS('writeFile', 'input.mp4', videoArr);
-      ffmpeg.FS('writeFile', 'overlay.png', overlayArr);
+      await ffmpegInst.writeFile('input.mp4', new Uint8Array(await videoFile.arrayBuffer()));
+      await ffmpegInst.writeFile('overlay.png', overlayArr);
 
       // Monta comando FFmpeg
       setMsg('Processando vídeo...');
@@ -941,11 +940,11 @@
         'output.mp4'
       );
 
-      await ffmpeg.run(...args);
+      await ffmpegInst.exec(args);
 
       // Download
       setMsg('Gerando arquivo final...');
-      const data = ffmpeg.FS('readFile', 'output.mp4');
+      const data = await ffmpegInst.readFile('output.mp4');
       const blob = new Blob([data.buffer], { type: 'video/mp4' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
@@ -954,7 +953,7 @@
       setTimeout(() => URL.revokeObjectURL(url), 5000);
 
       // Limpa FS
-      try { ffmpeg.FS('unlink', 'input.mp4'); ffmpeg.FS('unlink', 'overlay.png'); ffmpeg.FS('unlink', 'output.mp4'); } catch(e){}
+      try { await ffmpegInst.deleteFile('input.mp4'); await ffmpegInst.deleteFile('overlay.png'); await ffmpegInst.deleteFile('output.mp4'); } catch(e){}
 
       overlay.classList.remove('active');
       showToast('Vídeo exportado! ✓', 'ok');
