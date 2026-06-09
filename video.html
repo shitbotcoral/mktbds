@@ -447,7 +447,7 @@
 
   <div class="footer">
     <button class="btn btn-accent" id="btnProcessar" onclick="processarVideo()" disabled>
-      Processar e Baixar MP4
+      Gravar e Baixar
     </button>
   </div>
 
@@ -844,137 +844,75 @@
     hEnd.addEventListener('touchstart',   e => { handleDrag(hEnd, false); }, {passive:true});
   }
 
-  /* ─── FFmpeg 0.12 single-thread (sem SharedArrayBuffer) ─── */
-  let ffmpegInst = null;
+  /* ─── Exportação via MediaRecorder (sem FFmpeg, funciona em qualquer host) ─── */
+  let ffmpegInst = null; // mantido pra compatibilidade futura
 
   async function processarVideo() {
-    // Inicializa FFmpeg na primeira vez via import dinâmico
-    if (!ffmpegInst) {
-      setMsg('Carregando FFmpeg...');
-      try {
-        const { FFmpeg }    = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/esm/index.js');
-        const { toBlobURL } = await import('https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js');
-
-        const inst = new FFmpeg();
-        inst.on('log', ({ message }) => console.log('[FFmpeg]', message));
-        inst.on('progress', ({ progress }) => {
-          const pct = Math.round((progress || 0) * 100);
-          document.getElementById('procPct').textContent = pct + '%';
-          document.getElementById('procBar').style.width = pct + '%';
-        });
-
-        setMsg('Baixando core do FFmpeg (~30MB na primeira vez)...');
-
-        // tenta jsdelivr, se falhar tenta unpkg
-        let loaded = false;
-        for (const base of [
-          'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd',
-          'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
-        ]) {
-          try {
-            await inst.load({
-              coreURL: await toBlobURL(`${base}/ffmpeg-core.js`,   'text/javascript'),
-              wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
-            });
-            loaded = true;
-            break;
-          } catch(e) { console.warn('CDN falhou, tentando próximo...', e); }
-        }
-
-        if (!loaded) throw new Error('Nenhum CDN respondeu. Verifique sua conexão.');
-        ffmpegInst = inst; // só seta depois do load ter sucesso
-      } catch(err) {
-        document.getElementById('processingOverlay').classList.remove('active');
-        showToast('Erro ao carregar FFmpeg: ' + err.message, 'erro');
-        return;
-      }
-    }
     if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return; }
-
-    videoEl.pause();
-    textSelecionado = false;
-    renderFrame();
+    if (!window.MediaRecorder) { showToast('MediaRecorder não suportado neste browser.', 'erro'); return; }
 
     const overlay = document.getElementById('processingOverlay');
     overlay.classList.add('active');
-    setMsg('Iniciando FFmpeg...');
 
     try {
-      // Carrega FFmpeg se necessário
+      // Stream do canvas (renderiza vídeo + overlay + texto)
+      const canvasStream = canvas.captureStream(30);
 
-
-      // Gera imagem do overlay (layout + texto) no tamanho do vídeo nativo
-      setMsg('Gerando overlay...');
-      const vW = videoEl.videoWidth;
-      const vH = videoEl.videoHeight;
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width  = vW;
-      offCanvas.height = vH;
-      const offCtx = offCanvas.getContext('2d');
-
-      // Escala: proporção do canvas de composição para o vídeo nativo
-      const scaleX = vW / CW;
-      const scaleY = vH / CH;
-      offCtx.scale(scaleX, scaleY);
-
-      // Desenha overlay
-      if (overlayImg) offCtx.drawImage(overlayImg, 0, 0, CW, CH);
-
-      // Desenha texto
-      const texto = document.getElementById('textInput').value.toUpperCase();
-      if (texto.trim()) {
-        const fs = parseInt(document.getElementById('fontSize').value);
-        const lh = parseInt(document.getElementById('lineHeight').value);
-        const mw = parseInt(document.getElementById('maxWidth').value);
-        offCtx.font = `${fs}px 'Bebas Neue', sans-serif`;
-        offCtx.textBaseline = 'middle';
-        offCtx.fillStyle = '#ffffff';
-        wrapText(offCtx, texto, textX, textY, mw, lh, alinhamento);
+      // Adiciona áudio do vídeo se disponível
+      if (videoEl.captureStream) {
+        videoEl.captureStream().getAudioTracks().forEach(t => canvasStream.addTrack(t));
       }
 
-      const overlayBlob = await new Promise(res => offCanvas.toBlob(res, 'image/png', 1.0));
-      const overlayArr  = new Uint8Array(await overlayBlob.arrayBuffer());
+      // Melhor mimeType disponível
+      const mimeType = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
+        .find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
 
-      // Escreve arquivos no sistema de arquivos do FFmpeg
-      setMsg('Carregando vídeo para processamento...');
-      const videoArr = new Uint8Array(await videoFile.arrayBuffer());
-      await ffmpegInst.writeFile('input.mp4', new Uint8Array(await videoFile.arrayBuffer()));
-      await ffmpegInst.writeFile('overlay.png', overlayArr);
+      const chunks = [];
+      const recorder = new MediaRecorder(canvasStream, { mimeType, videoBitsPerSecond: 8_000_000 });
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
 
-      // Monta comando FFmpeg
-      setMsg('Processando vídeo...');
-      const args = [];
-      if (trimStart > 0.01) { args.push('-ss', trimStart.toFixed(3)); }
-      if (trimEnd < videoDuration - 0.01) { args.push('-to', trimEnd.toFixed(3)); }
-      args.push('-i', 'input.mp4');
-      args.push('-i', 'overlay.png');
-      args.push(
-        '-filter_complex', '[0:v][1:v]overlay=0:0:format=auto',
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '23',
-        '-c:a', 'aac',
-        '-movflags', '+faststart',
-        'output.mp4'
-      );
+      // Vai pro ponto de início
+      videoEl.currentTime = trimStart;
+      await new Promise(r => videoEl.addEventListener('seeked', r, { once: true }));
 
-      await ffmpegInst.exec(args);
+      const duracao = Math.round(trimEnd - trimStart);
+      setMsg(`Gravando ${duracao}s de vídeo em tempo real...`);
+      document.getElementById('procPct').textContent = '0%';
 
-      // Download
-      setMsg('Gerando arquivo final...');
-      const data = await ffmpegInst.readFile('output.mp4');
-      const blob = new Blob([data.buffer], { type: 'video/mp4' });
+      recorder.start(100);
+      videoEl.muted = false; // garante áudio na gravação
+      await videoEl.play();
+
+      // Acompanha progresso
+      await new Promise(resolve => {
+        const check = () => {
+          const prog = (videoEl.currentTime - trimStart) / (trimEnd - trimStart);
+          const pct  = Math.min(100, Math.round(prog * 100));
+          document.getElementById('procPct').textContent = pct + '%';
+          document.getElementById('procBar').style.width  = pct + '%';
+          if (videoEl.currentTime >= trimEnd - 0.05) {
+            videoEl.pause(); videoEl.muted = true; resolve();
+          } else {
+            requestAnimationFrame(check);
+          }
+        };
+        requestAnimationFrame(check);
+      });
+
+      recorder.stop();
+      setMsg('Finalizando arquivo...');
+
+      const blob = await new Promise(r => { recorder.onstop = () => r(new Blob(chunks, { type: mimeType })); });
+      const nome = 'sortetv_video_' + Date.now() + '.webm';
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
-      a.href = url; a.download = 'sortetv_video_' + Date.now() + '.mp4';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      a.href = url; a.download = nome;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 5000);
 
-      // Limpa FS
-      try { await ffmpegInst.deleteFile('input.mp4'); await ffmpegInst.deleteFile('overlay.png'); await ffmpegInst.deleteFile('output.mp4'); } catch(e){}
-
       overlay.classList.remove('active');
-      showToast('Vídeo exportado! ✓', 'ok');
+      showToast('Vídeo salvo! ✓', 'ok');
 
     } catch(err) {
       overlay.classList.remove('active');
@@ -983,7 +921,7 @@
     }
   }
 
-  function setMsg(msg) { document.getElementById('procMsg').textContent = msg; }
+    function setMsg(msg) { document.getElementById('procMsg').textContent = msg; }
 
   /* ─── Init ─── */
   document.fonts.load("1em 'Bebas Neue'").then(() => {
