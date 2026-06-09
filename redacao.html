@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>REDAÇÃO BDS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo+Black&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #02122c;
+      --panel:   #071a3e;
+      --surface: #0a2150;
+      --border:  #0e3272;
+      --accent:  #ffb700;
+      --accent-d:#cc8f00;
+      --blue:    #006ee6;
+      --blue-d:  #004fa8;
+      --text:    #e8edf5;
+      --muted:   #4a6fa5;
+      --error:   #e03030;
+      --radius:  10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'Archivo', sans-serif;
+      background: #010812;
+      color: var(--text);
+      height: 100vh; height: 100dvh;
+      display: flex; justify-content: center; align-items: center;
+      overflow: hidden;
+    }
+
+    .app {
+      width: 100%; height: 100%; max-width: 420px;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 0 80px rgba(0,0,0,0.9);
+      position: relative;
+      animation: fadeUp 0.3s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeDown {
+      from { opacity: 1; transform: translateY(0); }
+      to   { opacity: 0; transform: translateY(8px); }
+    }
+    .app.leaving { animation: fadeDown 0.22s ease both; }
+    @media (min-width: 440px) {
+      .app { height: 94vh; max-height: 900px; border-radius: 20px; border: 2px solid #0a1a3a; }
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--panel);
+      border-bottom: 2px solid var(--accent);
+      padding: 12px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .back-link {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--muted);
+      text-decoration: none; transition: color 0.15s, border-color 0.15s;
+    }
+    .back-link:hover { color: var(--accent); border-color: var(--accent); }
+    .header-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 2px; color: var(--text); }
+    .header-title span { color: var(--accent); }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .header-step { font-family: 'Archivo Black', sans-serif; font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+    .header-badge {
+      font-family: 'Inter', sans-serif; font-weight: 600;
+      font-size: 10px; color: var(--muted); background: var(--surface);
+      border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px;
+    }
+    .btn-config {
+      width: 32px; height: 32px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--muted); transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-config:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ── Steps ── */
+    .step { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    .step.active { display: flex; }
+
+    /* ── Canvas area ── */
+    .canvas-section {
+      flex-shrink: 0;
+      background: #010812;
+      display: flex; justify-content: center; align-items: flex-start;
+      padding: 10px 10px 8px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .canvas-wrap {
+      position: relative;
+      /* Ocupa 58% da largura disponível, mantendo prop 3:4 */
+      width: 58%;
+      aspect-ratio: 1080 / 1440;
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--surface);
+      cursor: grab;
+      box-shadow: 0 0 0 1px var(--border), 0 8px 30px rgba(0,0,0,0.6);
+    }
+    .canvas-wrap:active { cursor: grabbing; }
+    canvas { width: 100%; height: 100%; display: block; }
+
+    .upload-hint {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      cursor: pointer; background: rgba(2,18,44,0.85);
+      transition: background 0.2s; z-index: 5;
+    }
+    .upload-hint:hover { background: rgba(2,18,44,0.65); }
+    .upload-hint.gone { display: none; }
+    .upload-hint-icon {
+      width: 50px; height: 50px;
+      border: 2px solid var(--accent); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upload-hint-icon svg { width: 20px; height: 20px; stroke: var(--accent); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .upload-hint-label { font-family: 'Archivo Black', sans-serif; font-size: 10px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+
+    /* ── Tabs ── */
+    .tabs-nav {
+      display: flex; flex-shrink: 0;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+    }
+    .tab-btn {
+      flex: 1; padding: 11px 0;
+      background: transparent; border: none; border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-family: 'Archivo Black', sans-serif; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+      cursor: pointer; transition: color 0.2s;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Scroll ── */
+    .scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 14px 14px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .scroll::-webkit-scrollbar { width: 3px; }
+    .scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .tab-pane { display: none; flex-direction: column; gap: 10px; }
+    .tab-pane.active { display: flex; }
+
+    /* ── Bloco ── */
+    .bloco { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .bloco-head {
+      padding: 9px 13px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .bloco-titulo { font-family: 'Archivo Black', sans-serif; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+    .bloco-body { padding: 13px; display: flex; flex-direction: column; gap: 10px; }
+    .link-btn { background: transparent; border: none; font-family: 'Archivo Black', sans-serif; font-size: 9px; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+
+    /* ── Templates ── */
+    .tpl-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 12px; }
+    .tpl-btn {
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 7px; cursor: pointer; overflow: hidden;
+      display: flex; flex-direction: column; transition: border-color 0.15s;
+    }
+    .tpl-btn.ativo { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .tpl-thumb { width: 100%; aspect-ratio: 1080/1440; background: #010812; position: relative; overflow: hidden; }
+    .tpl-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .tpl-thumb .tpl-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Archivo Black', sans-serif; font-size: 7px; color: var(--border); }
+    .tpl-nome { font-family: 'Archivo Black', sans-serif; font-size: 7px; color: var(--muted); text-align: center; padding: 4px 2px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .tpl-btn.ativo .tpl-nome { color: var(--accent); }
+
+    /* ── Controls ── */
+    .ctrl { display: flex; flex-direction: column; gap: 5px; }
+    .ctrl-top { display: flex; justify-content: space-between; align-items: baseline; }
+    .ctrl-lbl { font-family: 'Archivo Black', sans-serif; font-size: 9px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+    .ctrl-val { font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--accent); line-height: 1; }
+
+    input[type="range"] {
+      width: 100%; -webkit-appearance: none; appearance: none;
+      height: 4px; border-radius: 2px;
+      background: var(--border); outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 0 3px rgba(255,183,0,0.2);
+      cursor: pointer;
+    }
+
+    .divider-line { height: 1px; background: var(--border); }
+    .drag-info {
+      display: flex; align-items: center; gap: 8px;
+      font-family: 'Archivo', sans-serif; font-size: 11px; color: var(--muted);
+      padding: 4px 0;
+    }
+
+    /* ── Texto ── */
+    textarea.manchete {
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: var(--radius); color: #fff;
+      font-family: 'Archivo Black', sans-serif; font-size: 14px;
+      letter-spacing: 1px; text-transform: uppercase;
+      padding: 12px; resize: none; min-height: 80px;
+      width: 100%; outline: none; line-height: 1.4;
+      transition: border-color 0.2s;
+    }
+    textarea.manchete:focus { border-color: var(--accent); }
+    textarea.manchete::placeholder { color: var(--border); }
+
+    .align-row { display: flex; gap: 6px; }
+    .align-opt {
+      flex: 1; padding: 9px 4px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 7px; cursor: pointer;
+      font-family: 'Archivo Black', sans-serif; font-size: 9px; color: var(--muted);
+      letter-spacing: 1px; text-transform: uppercase;
+      transition: all 0.15s;
+    }
+    .align-opt.ativo { border-color: var(--accent); color: var(--accent); background: rgba(255,183,0,0.07); }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 12px 14px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex; gap: 10px;
+    }
+
+    .btn {
+      flex: 1; border: none; border-radius: var(--radius);
+      font-family: 'Archivo Black', sans-serif; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
+      cursor: pointer; padding: 14px; transition: all 0.1s;
+    }
+    .btn:active { transform: translateY(2px); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .btn-accent { background: var(--accent); color: var(--bg); box-shadow: 0 3px 0 var(--accent-d); }
+    .btn-accent:active { box-shadow: none; }
+    .btn-blue { background: var(--blue); color: #fff; box-shadow: 0 3px 0 var(--blue-d); }
+    .btn-blue:active { box-shadow: none; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+    /* ── Step 2: Preview ── */
+    .preview-scroll { flex: 1; overflow-y: auto; padding: 14px; background: var(--bg); display: flex; flex-direction: column; gap: 14px; }
+    .preview-scroll::-webkit-scrollbar { width: 3px; }
+    .preview-scroll::-webkit-scrollbar-thumb { background: var(--border); }
+
+    #previewCanvas { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); display: block; }
+
+    .preview-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+    textarea.legenda {
+      background: var(--panel); border: 1.5px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-family: 'Archivo', sans-serif; font-weight: 500; font-size: 14px;
+      padding: 13px; resize: none; min-height: 140px;
+      width: 100%; outline: none; line-height: 1.6;
+      transition: border-color 0.2s;
+    }
+    textarea.legenda:focus { border-color: var(--blue); }
+    textarea.legenda::placeholder { color: var(--muted); font-weight: 400; }
+
+    .fluxo {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 13px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .fluxo-titulo { font-family: 'Archivo Black', sans-serif; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+    .fluxo-item { display: flex; align-items: flex-start; gap: 10px; }
+    .fluxo-num {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--accent); color: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Archivo Black', sans-serif; font-size: 9px;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .fluxo-txt { font-size: 12px; color: var(--text); line-height: 1.4; }
+
+    /* ── Config Modal ── */
+    .modal-overlay {
+      position: absolute; inset: 0;
+      background: rgba(1,8,18,0.92);
+      display: none; justify-content: center; align-items: center;
+      z-index: 100; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--panel); border: 1px solid var(--border);
+      border-top: 3px solid var(--accent);
+      border-radius: 14px; width: 100%;
+      padding: 22px; box-shadow: 0 24px 60px rgba(0,0,0,0.8);
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .modal-titulo {
+      font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px; color: var(--accent);
+      text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .modal-desc { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.5; }
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-group label { font-family: 'Archivo Black', sans-serif; font-size: 9px; color: var(--text); text-transform: uppercase; letter-spacing: 1.5px; }
+    .input-group input {
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      padding: 11px 13px; outline: none;
+      font-family: 'Archivo', sans-serif; font-size: 13px;
+    }
+    .input-group input:focus { border-color: var(--accent); }
+
+    /* ── Toast ── */
+    #toast {
+      position: absolute; top: 14px; left: 50%;
+      transform: translateX(-50%) translateY(-70px);
+      background: var(--accent); color: var(--bg);
+      padding: 9px 18px; border-radius: 20px;
+      font-family: 'Archivo Black', sans-serif; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+      z-index: 9999; transition: transform 0.25s; pointer-events: none; white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.erro { background: #8b1a1a; color: #fff; }
+    #toast.ok   { background: #1a7a3a; color: #fff; }
+  </style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- CONFIG MODAL -->
+  <div id="configModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-titulo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Cofre do Trello
+      </div>
+      <div class="modal-desc">As credenciais ficam salvas apenas no seu navegador. Necessário para envio automático ao Trello.</div>
+      <div class="input-group">
+        <label>Trello API Key</label>
+        <input type="password" id="inpKey" placeholder="Cole a Key aqui...">
+      </div>
+      <div class="input-group">
+        <label>Trello Token</label>
+        <input type="password" id="inpToken" placeholder="Cole o Token aqui...">
+      </div>
+      <button class="btn btn-blue" style="font-size:11px;padding:12px;" onclick="salvarConfig()">Salvar no Navegador</button>
+      <button class="btn btn-outline" style="padding:10px;font-size:10px;" onclick="fecharConfig()">Fechar</button>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <a href="#" onclick="ir('hub.html')" class="back-link" title="Voltar ao Hub">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </a>
+      <div class="header-title">Criador de <span>Notícia</span></div>
+    </div>
+    <div class="header-right">
+      <span class="header-step" id="headerStep">Edição</span>
+      <span class="header-badge">v2.0</span>
+      <button class="btn-config" onclick="abrirConfig()" title="Configurar Trello">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- STEP 1: EDITOR -->
+  <div id="s1" class="step active">
+    <div class="canvas-section">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="canvas" width="1080" height="1440"></canvas>
+        <div id="uploadHint" class="upload-hint" onclick="document.getElementById('bgInput').click()">
+          <div class="upload-hint-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div class="upload-hint-label">Adicionar Fundo</div>
+        </div>
+      </div>
+      <input type="file" id="bgInput" accept="image/*" style="display:none">
+    </div>
+
+    <div class="tabs-nav">
+      <button class="tab-btn active" id="btnFundo" onclick="openTab('tFundo', this)">Fundo</button>
+      <button class="tab-btn" id="btnLayout" onclick="openTab('tLayout', this)">Layout</button>
+      <button class="tab-btn" id="btnTexto" onclick="openTab('tTexto', this)">Texto</button>
+    </div>
+
+    <div class="scroll">
+
+      <!-- TAB: LAYOUT -->
+      <div id="tLayout" class="tab-pane">
+        <div class="bloco">
+          <div class="bloco-head"><span class="bloco-titulo">Modelo da Tag</span></div>
+          <div class="tpl-grid" id="templatesGrid"></div>
+        </div>
+      </div>
+
+      <!-- TAB: FUNDO -->
+      <div id="tFundo" class="tab-pane active">
+        <div class="bloco">
+          <div class="bloco-head">
+            <span class="bloco-titulo">Imagem de Fundo</span>
+            <button class="link-btn" onclick="document.getElementById('bgInput').click()">Trocar Imagem</button>
+          </div>
+          <div class="bloco-body">
+            <div class="ctrl">
+              <div class="ctrl-top"><span class="ctrl-lbl">Zoom</span><span class="ctrl-val" id="vZoom">100%</span></div>
+              <input type="range" id="zoomImg" min="100" max="300" value="100" oninput="document.getElementById('vZoom').textContent=this.value+'%'; aplicarZoom()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: TEXTO -->
+      <div id="tTexto" class="tab-pane">
+        <div class="bloco">
+          <div class="bloco-head"><span class="bloco-titulo">Manchete</span></div>
+          <div class="bloco-body">
+            <textarea class="manchete" id="textInput" placeholder="Digite a manchete..." oninput="renderizar()">GOL DO BRASIL!</textarea>
+          </div>
+        </div>
+        <div class="bloco">
+          <div class="bloco-head"><span class="bloco-titulo">Alinhamento</span></div>
+          <div class="bloco-body">
+            <div class="align-row">
+              <button class="align-opt ativo" data-align="left" onclick="setAlign('left',this)">Esq.</button>
+              <button class="align-opt" data-align="center" onclick="setAlign('center',this)">Centro</button>
+              <button class="align-opt" data-align="right" onclick="setAlign('right',this)">Dir.</button>
+            </div>
+          </div>
+        </div>
+        <div class="bloco">
+          <div class="bloco-head"><span class="bloco-titulo">Estilo e Posição</span></div>
+          <div class="bloco-body">
+            <div class="ctrl">
+              <div class="ctrl-top"><span class="ctrl-lbl">Tamanho da Fonte</span><span class="ctrl-val" id="vFontSize">85</span></div>
+              <input type="range" id="fontSize" min="30" max="220" value="85" oninput="sync('fontSize','vFontSize'); renderizar()">
+            </div>
+            <div class="divider-line"></div>
+            <div class="ctrl">
+              <div class="ctrl-top"><span class="ctrl-lbl">Espaço entre Linhas</span><span class="ctrl-val" id="vLineHeight">80</span></div>
+              <input type="range" id="lineHeight" min="30" max="260" value="80" oninput="sync('lineHeight','vLineHeight'); renderizar()">
+            </div>
+            <div class="divider-line"></div>
+            <div class="ctrl">
+              <div class="ctrl-top"><span class="ctrl-lbl">Largura Máxima</span><span class="ctrl-val" id="vMaxWidth">940</span></div>
+              <input type="range" id="maxWidth" min="200" max="1080" value="940" oninput="sync('maxWidth','vMaxWidth'); renderizar()">
+            </div>
+            <div class="divider-line"></div>
+            <div class="drag-info">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>
+              Arraste o texto direto no canvas para reposicionar
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <button class="btn btn-accent" style="flex:1;" onclick="irParaRevisao()">Prosseguir para Revisão</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: REVISÃO -->
+  <div id="s2" class="step">
+    <div class="preview-scroll">
+
+      <!-- Arte preview centralizada -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+          <span class="bloco-titulo">Arte Final</span>
+          <span id="fileTag" style="font-family:'Archivo Black',sans-serif;font-size:9px;color:var(--muted);letter-spacing:1px;">–</span>
+        </div>
+        <canvas id="previewCanvas" width="1080" height="1440"
+          style="width:60%;height:auto;display:block;border-radius:8px;border:1px solid var(--border);box-shadow:0 8px 30px rgba(0,0,0,0.5);">
+        </canvas>
+      </div>
+
+      <!-- Legenda livre do Instagram -->
+      <div class="bloco">
+        <div class="bloco-head">
+          <span class="bloco-titulo">Legenda do Post</span>
+          <span style="font-size:10px;color:var(--muted);font-family:'Archivo',sans-serif;font-weight:500;">Instagram</span>
+        </div>
+        <div class="bloco-body">
+          <textarea class="legenda" id="legendaInput"
+            placeholder="Escreva a legenda completa aqui 🔥&#10;&#10;Emojis, hashtags, quebras de linha — tudo liberado. Sem limite de caracteres."></textarea>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <button class="btn btn-outline" style="flex:0 0 auto;padding:14px 14px;" onclick="voltarEditor()" title="Voltar para edição">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <button class="btn btn-accent" onclick="somentesSalvar()">Salvar Arte</button>
+      <button class="btn btn-blue" id="btnTrello" onclick="salvarETrello()">Salvar + Trello</button>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+</div><!-- .app -->
+
+<script>
+  /* ── Config Trello ── */
+  const TRELLO_KEY     = 'af31fbdd5645cb79b866a7329a2c26d1';
+  const TRELLO_TOKEN   = 'ATTA19cac2fddf8770fe1f5ab10fd380f864993790c3a8fa5f85fd82a5f40052e36b08ADD7AC';
+  const TRELLO_LIST_ID = '68e80f4686f239d2aeca1f32';
+  const TRELLO_MEMBROS = [
+    '65a67a55526b51ed32720aa1','678e7838e09f883754186aac','67b37c2566aeea75532fd6a7',
+    '68237d794f894f3376f18a4d','688a390bbb9c27344135f8ce','67d1da89cb1b4d81df684622',
+    '69ef696ed4eb7735eac76c52','63610ab1ad4010038cd536a4','6516aa5a10ba65ffed1bae5d',
+    '6967ca46aaca3a3f76a642f8'
+  ];
+
+  function abrirConfig() {
+    document.getElementById('inpKey').value   = localStorage.getItem('trello_key') || '';
+    document.getElementById('inpToken').value = localStorage.getItem('trello_token') || '';
+    document.getElementById('configModal').classList.add('open');
+  }
+  function fecharConfig() { document.getElementById('configModal').classList.remove('open'); }
+  function salvarConfig() {
+    showToast('Credenciais já configuradas no sistema!', 'ok');
+    fecharConfig();
+  }
+
+  /* ── Layouts predefinidos ── */
+  const LAYOUTS = {
+    semtag:  { x:70,  y:1140, size:85,  height:80, align:'left',   maxWidth:940, file:'img/LAYOUTS/1 SEM TAG.png',         nome:'Sem Tag' },
+    tagmaior:{ x:70,  y:1140, size:85,  height:80, align:'left',   maxWidth:940, file:'img/LAYOUTS/2 TAG MAIOR.png',       nome:'Tag Maior' },
+    tagmenor:{ x:70,  y:1060, size:75,  height:70, align:'left',   maxWidth:940, file:'img/LAYOUTS/3 TAG MENOR.png',       nome:'Tag Menor' },
+    meio:    { x:70,  y:795,  size:80,  height:75, align:'left',   maxWidth:940, file:'img/LAYOUTS/4 DIVIDIDO NO MEIO.png',nome:'Dividido' }
+  };
+
+  const CW = 1080, CH = 1440;
+  let layoutAtual = 'semtag', alinhamento = 'left';
+  let imgBgObj = null, overlayCache = {};
+  let cropX = 0, cropY = 0, cropScale = 1, baseScale = 1;
+  let isDragging = false, dragSX = 0, dragSY = 0, dragOX = 0, dragOY = 0;
+  // Posição do texto (em coordenadas do canvas 1080x1440)
+  let textX = 70, textY = 1140;
+  let isDraggingText = false, textDragSX = 0, textDragSY = 0, textOX = 0, textOY = 0;
+  let textSelecionado = false; // mostra caixa de seleção ao redor do texto
+
+  /* ── Contador de arquivos ── */
+  function peekNumero() { return String((parseInt(localStorage.getItem('bds_num')||'0')+1)).padStart(4,'0'); }
+  function getNumero()  { const n = parseInt(localStorage.getItem('bds_num')||'0')+1; localStorage.setItem('bds_num',n); return String(n).padStart(4,'0'); }
+
+  /* ── Steps ── */
+  async function irParaRevisao() {
+    textSelecionado = false;   // garante sem caixa de seleção no preview
+    await renderizar();        // aguarda overlay carregar
+    const src  = document.getElementById('canvas');
+    const dest = document.getElementById('previewCanvas');
+    dest.width  = CW;
+    dest.height = CH;
+    dest.getContext('2d').drawImage(src, 0, 0, CW, CH);
+    document.getElementById('fileTag').textContent = 'sortetvnoticia_' + peekNumero() + '.png';
+    document.getElementById('headerStep').textContent = 'Revisão';
+    document.getElementById('s1').classList.remove('active');
+    document.getElementById('s2').classList.add('active');
+  }
+
+  function voltarEditor() {
+    document.getElementById('s2').classList.remove('active');
+    document.getElementById('s1').classList.add('active');
+    document.getElementById('headerStep').textContent = 'Edição';
+  }
+
+  /* ── Salvar apenas arte ── */
+  async function somentesSalvar() {
+    // Se o previewCanvas estiver vazio, re-renderiza e copia
+    const prev = document.getElementById('previewCanvas');
+    if (!prev.width || prev.width < 100) {
+      textSelecionado = false;
+      await renderizar();
+      const src = document.getElementById('canvas');
+      prev.width = CW; prev.height = CH;
+      prev.getContext('2d').drawImage(src, 0, 0, CW, CH);
+    }
+    const nome = 'sortetvnoticia_' + getNumero() + '.png';
+    prev.toBlob(blob => {
+      if (!blob) { showToast('Erro ao gerar imagem.', 'erro'); return; }
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href = url; a.download = nome;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      showToast('Arte salva! ✓', 'ok');
+    }, 'image/png', 1.0);
+  }
+
+  /* ── Salvar + Trello ── */
+  async function salvarETrello() {
+    const key   = TRELLO_KEY;
+    const token = TRELLO_TOKEN;
+
+    const manchete = document.getElementById('textInput').value.toUpperCase().trim();
+    const legenda  = document.getElementById('legendaInput').value.trim();
+    if (!manchete) { showToast('Adicione a manchete antes', 'erro'); return; }
+
+    const btn = document.getElementById('btnTrello');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+
+    try {
+      // ── Data e hora arredondada pra frente ──
+      const now  = new Date();
+      const h    = now.getMinutes() > 0 ? now.getHours() + 1 : now.getHours();
+      const hora = String(h % 24).padStart(2, '0') + 'H00';
+      const dia  = String(now.getDate()).padStart(2, '0');
+      const mes  = String(now.getMonth() + 1).padStart(2, '0');
+      const dataStr = `${dia}/${mes}`;
+
+      // ── Título do card ──
+      const nomeCard = `SORTE TV | NOTÍCIA - ${manchete} [${dataStr} - ${hora}]`;
+
+      // ── Descrição do card ──
+      const descricao = `MANCHETE: ${manchete}\n\nLEGENDA: ${legenda || 'Sem legenda.'}`;
+
+      // ── Gera blob da imagem ──
+      const prev2 = document.getElementById('previewCanvas');
+      if (!prev2.width || prev2.width < 100) {
+        textSelecionado = false;
+        await renderizar();
+        const src2 = document.getElementById('canvas');
+        prev2.width = CW; prev2.height = CH;
+        prev2.getContext('2d').drawImage(src2, 0, 0, CW, CH);
+      }
+      const numero = getNumero();
+      const nome   = 'sortetvnoticia_' + numero + '.png';
+
+      const blob = await new Promise((res, rej) => {
+        prev2.toBlob(b => b ? res(b) : rej(new Error('Falha ao gerar imagem.')), 'image/png', 1.0);
+      });
+
+      // ── Download: abre em nova aba (funciona em mobile e desktop sem sair da página) ──
+      const blobUrl = URL.createObjectURL(blob);
+      const linkDown = document.createElement('a');
+      linkDown.href = blobUrl;
+      linkDown.download = nome;
+      linkDown.target = '_blank';
+      linkDown.rel = 'noopener';
+      document.body.appendChild(linkDown);
+      linkDown.click();
+      document.body.removeChild(linkDown);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+      // ── Cria card no Trello ──
+      showToast('Criando card no Trello...', '');
+      const due = new Date(); due.setHours(20, 0, 0, 0);
+      const respCard = await fetch(`https://api.trello.com/1/cards?key=${key}&token=${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idList: TRELLO_LIST_ID,
+          name: nomeCard,
+          desc: descricao,
+          due: due.toISOString(),
+          idMembers: TRELLO_MEMBROS,
+          cover: { color: 'pink', size: 'full', brightness: 'light' }
+        })
+      });
+
+      if (!respCard.ok) throw new Error('Trello recusou o acesso.');
+      const card = await respCard.json();
+
+      // ── Anexa imagem ao card ──
+      showToast('Anexando imagem...', '');
+      const fd = new FormData();
+      fd.append('key',   key);
+      fd.append('token', token);
+      fd.append('name',  nome);
+      fd.append('file',  blob, nome);
+      const respAnexo = await fetch(
+        `https://api.trello.com/1/cards/${card.id}/attachments`,
+        { method: 'POST', body: fd }
+      );
+      if (!respAnexo.ok) console.warn('Anexo falhou:', await respAnexo.text());
+
+      // ── Força capa rosa (sobrescreve a imagem anexada) ──
+      await fetch(`https://api.trello.com/1/cards/${card.id}?key=${key}&token=${token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cover: { color: 'pink', size: 'full', brightness: 'light' } })
+      });
+
+      showToast('Card criado com imagem! ✓', 'ok');
+
+    } catch(err) {
+      showToast('Erro: ' + err.message, 'erro');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Salvar + Trello';
+    }
+  }
+
+  /* ── Tabs ── */
+  let abaAtiva = 'tFundo'; // controla qual drag está ativo
+  function openTab(id, el) {
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    el.classList.add('active');
+    abaAtiva = id;
+    // Deseleciona texto ao trocar de aba
+    if (id !== 'tTexto' && textSelecionado) { textSelecionado = false; renderizar(); }
+  }
+
+  /* ── Templates ── */
+  function gerarTemplates() {
+    const grid = document.getElementById('templatesGrid');
+    grid.innerHTML = '';
+    Object.entries(LAYOUTS).forEach(([key, conf]) => {
+      const btn  = document.createElement('button');
+      btn.className = 'tpl-btn' + (key === layoutAtual ? ' ativo' : '');
+      btn.dataset.layout = key;
+      btn.onclick = () => selecionarLayout(key);
+
+      const thumb = document.createElement('div'); thumb.className = 'tpl-thumb';
+      const img   = document.createElement('img'); img.src = conf.file; img.alt = conf.nome;
+      img.onerror = () => {
+        img.style.display = 'none';
+        const ph = document.createElement('div'); ph.className = 'tpl-ph'; ph.textContent = conf.nome;
+        thumb.appendChild(ph);
+      };
+      thumb.appendChild(img);
+
+      const nome = document.createElement('div'); nome.className = 'tpl-nome'; nome.textContent = conf.nome;
+      btn.appendChild(thumb); btn.appendChild(nome);
+      grid.appendChild(btn);
+    });
+  }
+
+  /* ── Imagem de fundo ── */
+  document.getElementById('bgInput').addEventListener('change', function() {
+    if (this.files[0]) carregarImagem(this.files[0]);
+  });
+
+  function carregarImagem(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      imgBgObj = new Image();
+      imgBgObj.onload = () => {
+        calcBaseScale(); resetarImagem();
+        document.getElementById('uploadHint').classList.add('gone');
+        renderizar();
+      };
+      imgBgObj.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function calcBaseScale() {
+    if (!imgBgObj) return;
+    baseScale = Math.max(CW / imgBgObj.naturalWidth, CH / imgBgObj.naturalHeight);
+    cropScale = baseScale;
+  }
+
+  function aplicarZoom() {
+    if (!imgBgObj) return;
+    cropScale = baseScale * (parseInt(document.getElementById('zoomImg').value) / 100);
+    clampCrop(); renderizar();
+  }
+
+  function clampCrop() {
+    if (!imgBgObj) return;
+    const mX = CW - imgBgObj.naturalWidth * cropScale;
+    const mY = CH - imgBgObj.naturalHeight * cropScale;
+    cropX = Math.min(0, Math.max(mX, cropX));
+    cropY = Math.min(0, Math.max(mY, cropY));
+  }
+
+  function resetarImagem() {
+    if (!imgBgObj) return;
+    cropScale = baseScale * (parseInt(document.getElementById('zoomImg').value) / 100);
+    cropX = (CW - imgBgObj.naturalWidth * cropScale) / 2;
+    cropY = (CH - imgBgObj.naturalHeight * cropScale) / 2;
+    clampCrop();
+  }
+
+  /* ── Drag ── */
+  const cw = document.getElementById('canvasWrap');
+  const cs = () => document.getElementById('canvas').width / cw.clientWidth;
+
+  cw.addEventListener('mousedown', e => {
+    if (!imgBgObj || abaAtiva !== 'tFundo') return;
+    isDragging = true; dragSX = e.clientX; dragSY = e.clientY; dragOX = cropX; dragOY = cropY;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const s = cs();
+    cropX = dragOX + (e.clientX - dragSX) * s;
+    cropY = dragOY + (e.clientY - dragSY) * s;
+    clampCrop(); renderizar();
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; isDraggingText = false; });
+
+  cw.addEventListener('touchstart', e => {
+    if (!imgBgObj || abaAtiva !== 'tFundo') return;
+    isDragging = true; dragSX = e.touches[0].clientX; dragSY = e.touches[0].clientY; dragOX = cropX; dragOY = cropY;
+  }, {passive:true});
+  window.addEventListener('touchmove', e => {
+    if (!isDragging) return;
+    const s = cs();
+    cropX = dragOX + (e.touches[0].clientX - dragSX) * s;
+    cropY = dragOY + (e.touches[0].clientY - dragSY) * s;
+    clampCrop(); renderizar();
+  }, {passive:true});
+  window.addEventListener('touchend', () => { isDragging = false; isDraggingText = false; });
+
+  /* ── Drag do TEXTO no canvas ── */
+  // Converte coordenada de tela → coordenada do canvas 1080x1440
+  function screenToCanvas(screenX, screenY) {
+    const rect = cw.getBoundingClientRect();
+    const scaleX = CW / rect.width;
+    const scaleY = CH / rect.height;
+    return {
+      x: (screenX - rect.left) * scaleX,
+      y: (screenY - rect.top)  * scaleY
+    };
+  }
+
+  // Detecta se o clique está perto do texto
+  function perto(sx, sy) {
+    const p = screenToCanvas(sx, sy);
+    const dx = Math.abs(p.x - textX);
+    const dy = Math.abs(p.y - textY);
+    return dx < 200 && dy < 120;
+  }
+
+  cw.addEventListener('mousedown', e => {
+    if (abaAtiva !== 'tTexto') return;
+    if (perto(e.clientX, e.clientY)) {
+      isDraggingText = true;
+      textSelecionado = true;
+      textDragSX = e.clientX; textDragSY = e.clientY;
+      textOX = textX; textOY = textY;
+      e.stopPropagation();
+      renderizar();
+    } else {
+      if (textSelecionado) { textSelecionado = false; renderizar(); }
+    }
+  }, true);
+
+  window.addEventListener('mousemove', e => {
+    if (!isDraggingText) return;
+    const p0 = screenToCanvas(textDragSX, textDragSY);
+    const p1 = screenToCanvas(e.clientX, e.clientY);
+    textX = Math.max(0, Math.min(CW, textOX + (p1.x - p0.x)));
+    textY = Math.max(0, Math.min(CH, textOY + (p1.y - p0.y)));
+    renderizar();
+  });
+
+  cw.addEventListener('touchstart', e => {
+    if (abaAtiva !== 'tTexto') return;
+    if (perto(e.touches[0].clientX, e.touches[0].clientY)) {
+      isDraggingText = true;
+      textSelecionado = true;
+      textDragSX = e.touches[0].clientX; textDragSY = e.touches[0].clientY;
+      textOX = textX; textOY = textY;
+      e.stopPropagation();
+      renderizar();
+    } else {
+      if (textSelecionado) { textSelecionado = false; renderizar(); }
+    }
+  }, {passive:true, capture:true});
+
+  window.addEventListener('touchmove', e => {
+    if (!isDraggingText) return;
+    const p0 = screenToCanvas(textDragSX, textDragSY);
+    const p1 = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
+    textX = Math.max(0, Math.min(CW, textOX + (p1.x - p0.x)));
+    textY = Math.max(0, Math.min(CH, textOY + (p1.y - p0.y)));
+    renderizar();
+  }, {passive:true});
+
+  /* ── Layout select ── */
+  function selecionarLayout(nome) {
+    layoutAtual = nome;
+    document.querySelectorAll('.tpl-btn').forEach(b => b.classList.toggle('ativo', b.dataset.layout === nome));
+    const c = LAYOUTS[nome];
+    setSlider('fontSize', c.size);
+    setSlider('lineHeight', c.height);
+    setSlider('maxWidth', c.maxWidth);
+    textX = c.x; textY = c.y;
+    setAlign(c.align, document.querySelector(`.align-opt[data-align="${c.align}"]`));
+    renderizar();
+  }
+
+  function sync(id, vid) { document.getElementById(vid).textContent = document.getElementById(id).value; }
+  function setSlider(id, val) {
+    document.getElementById(id).value = val;
+    const map = { fontSize:'vFontSize', lineHeight:'vLineHeight', maxWidth:'vMaxWidth' };
+    if (map[id]) document.getElementById(map[id]).textContent = val;
+  }
+  function setAlign(align, btn) {
+    alinhamento = align;
+    document.querySelectorAll('.align-opt').forEach(b => b.classList.remove('ativo'));
+    if (btn) btn.classList.add('ativo');
+    // Ancora posX conforme alinhamento
+    if (align === 'left')   textX = 70;
+    if (align === 'center') textX = CW / 2;
+    if (align === 'right')  textX = CW - 70;
+    renderizar();
+  }
+
+  /* ── Render ── */
+  // Retorna { x, y, w, h } do bloco de texto para desenhar a seleção
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight, align) {
+    const words = text.split(' ');
+    let line = '', lines = [];
+    words.forEach((w, n) => {
+      const t = line + w + ' ';
+      if (ctx.measureText(t).width > maxWidth && n > 0) { lines.push(line.trim()); line = w + ' '; }
+      else line = t;
+    });
+    lines.push(line.trim());
+    const startY = y - (lines.length * lineHeight / 2) + lineHeight / 2;
+    ctx.textAlign = align;
+    lines.forEach((l, i) => ctx.fillText(l, x, startY + i * lineHeight));
+
+    // Calcula bounding box real
+    let maxW = 0;
+    lines.forEach(l => { const m = ctx.measureText(l).width; if (m > maxW) maxW = m; });
+    const totalH = lines.length * lineHeight;
+    let bx = x;
+    if (align === 'center') bx = x - maxW / 2;
+    if (align === 'right')  bx = x - maxW;
+    return { x: bx, y: startY - lineHeight / 2, w: maxW, h: totalH };
+  }
+
+  function getOverlay(file) {
+    return new Promise((res, rej) => {
+      if (overlayCache[file]) return res(overlayCache[file]);
+      // Tenta com crossOrigin primeiro (funciona em servidor — evita tainted canvas)
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { overlayCache[file] = img; res(img); };
+      img.onerror = () => {
+        // Fallback sem crossOrigin (funciona em file://, mas pode travar export)
+        const img2 = new Image();
+        img2.onload = () => { overlayCache[file] = img2; res(img2); };
+        img2.onerror = () => rej(file);
+        img2.src = file + '?local=1';
+      };
+      img.src = file;
+    });
+  }
+
+  async function renderizar() {
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d');
+    canvas.width = CW; canvas.height = CH;
+
+    const conf       = LAYOUTS[layoutAtual];
+    const texto      = document.getElementById('textInput').value.toUpperCase();
+    const fontSize   = parseInt(document.getElementById('fontSize').value);
+    const lineHeight = parseInt(document.getElementById('lineHeight').value);
+    const posX       = textX;
+    const posY       = textY;
+    const maxWidth   = parseInt(document.getElementById('maxWidth').value);
+
+    ctx.clearRect(0, 0, CW, CH);
+
+    if (imgBgObj) {
+      ctx.drawImage(imgBgObj, cropX, cropY, imgBgObj.naturalWidth * cropScale, imgBgObj.naturalHeight * cropScale);
+    } else {
+      const grad = ctx.createLinearGradient(0, 0, 0, CH);
+      grad.addColorStop(0, '#02122c');
+      grad.addColorStop(1, '#010812');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, CW, CH);
+    }
+
+    try {
+      const ov = await getOverlay(conf.file);
+      ctx.drawImage(ov, 0, 0, CW, CH);
+    } catch(e) {
+      // overlay não encontrado — continua sem
+    }
+
+    ctx.font = `${fontSize}px 'Bebas Neue', sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    const bbox = wrapText(ctx, texto, posX, posY, maxWidth, lineHeight, alinhamento);
+
+    // Desenha seleção retangular se o texto estiver selecionado
+    if (textSelecionado) {
+      const pad = 18;
+      const rx = bbox.x - pad;
+      const ry = bbox.y - pad;
+      const rw = bbox.w + pad * 2;
+      const rh = bbox.h + pad * 2;
+
+      // Sombra suave atrás da caixa
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 20;
+
+      // Borda tracejada branca
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([20, 12]);
+      ctx.lineDashOffset = 0;
+      ctx.strokeRect(rx, ry, rw, rh);
+
+      // Borda interna dourada fina
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(255, 183, 0, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(rx - 4, ry - 4, rw + 8, rh + 8);
+
+      ctx.restore();
+
+
+    }
+  }
+
+  /* ── Toast ── */
+  function showToast(msg, tipo = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'show ' + tipo;
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.className = '', 3200);
+  }
+
+  /* ── Init ── */
+  document.fonts.load("1em 'Bebas Neue'").then(() => { gerarTemplates(); renderizar(); });
+
+  // Transição suave ao sair da página
+  function ir(url) {
+    const app = document.getElementById('app');
+    if (app) { app.classList.add('leaving'); setTimeout(() => window.location.href = url, 220); }
+    else window.location.href = url;
+  }
+  // Intercepta todos os links internos
+  document.addEventListener('click', function(e) {
+    const a = e.target.closest('a[href]');
+    if (a && !a.href.startsWith('http') && !a.target) {
+      e.preventDefault(); ir(a.getAttribute('href'));
+    }
+  });
+</script>
+</body>
+</html>
