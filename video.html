@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>VÍDEO BDS</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Fix SharedArrayBuffer no GitHub Pages -->
+  <script src="coi-serviceworker.min.js"></script>
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
   <style>
     :root {
@@ -845,18 +847,28 @@
   }
 
   /* ─── FFmpeg: processar e exportar ─── */
-  const { createFFmpeg, fetchFile } = FFmpeg;
-  const ffmpeg = createFFmpeg({
-    log: false,
-    corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
-    progress: ({ ratio }) => {
-      const pct = Math.round(ratio * 100);
-      document.getElementById('procPct').textContent = pct + '%';
-      document.getElementById('procBar').style.width = pct + '%';
-    }
-  });
+  let ffmpeg = null;
 
   async function processarVideo() {
+    // Verifica se FFmpeg carregou
+    if (typeof FFmpeg === 'undefined') {
+      showToast('FFmpeg ainda não carregou. Recarregue a página.', 'erro');
+      return;
+    }
+
+    // Inicializa FFmpeg na primeira vez
+    if (!ffmpeg) {
+      const { createFFmpeg } = FFmpeg;
+      ffmpeg = createFFmpeg({
+        log: false,
+        corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+        progress: ({ ratio }) => {
+          const pct = Math.round(ratio * 100);
+          document.getElementById('procPct').textContent = pct + '%';
+          document.getElementById('procBar').style.width = pct + '%';
+        }
+      });
+    }
     if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return; }
 
     videoEl.pause();
