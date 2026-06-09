@@ -535,10 +535,10 @@
 
   /* ── Layouts predefinidos ── */
   const LAYOUTS = {
-    semtag:  { x:70,  y:1140, size:85,  height:80, align:'left',   maxWidth:940, file:'img/LAYOUTS/1 SEM TAG.png',         nome:'Sem Tag' },
-    tagmaior:{ x:70,  y:1140, size:85,  height:80, align:'left',   maxWidth:940, file:'img/LAYOUTS/2 TAG MAIOR.png',       nome:'Tag Maior' },
-    tagmenor:{ x:70,  y:1060, size:75,  height:70, align:'left',   maxWidth:940, file:'img/LAYOUTS/3 TAG MENOR.png',       nome:'Tag Menor' },
-    meio:    { x:70,  y:795,  size:80,  height:75, align:'left',   maxWidth:940, file:'img/LAYOUTS/4 DIVIDIDO NO MEIO.png',nome:'Dividido' }
+    semtag:  { x:110, y:1140, size:85,  height:80, align:'left',   maxWidth:880, file:'img/LAYOUTS/1 SEM TAG.png',         nome:'Sem Tag' },
+    tagmaior:{ x:110, y:1140, size:85,  height:80, align:'left',   maxWidth:880, file:'img/LAYOUTS/2 TAG MAIOR.png',       nome:'Tag Maior' },
+    tagmenor:{ x:110, y:1060, size:75,  height:70, align:'left',   maxWidth:880, file:'img/LAYOUTS/3 TAG MENOR.png',       nome:'Tag Menor' },
+    meio:    { x:110, y:795,  size:80,  height:75, align:'left',   maxWidth:880, file:'img/LAYOUTS/4 DIVIDIDO NO MEIO.png',nome:'Dividido' }
   };
 
   const CW = 1080, CH = 1440;
@@ -547,9 +547,10 @@
   let cropX = 0, cropY = 0, cropScale = 1, baseScale = 1;
   let isDragging = false, dragSX = 0, dragSY = 0, dragOX = 0, dragOY = 0;
   // Posição do texto (em coordenadas do canvas 1080x1440)
-  let textX = 70, textY = 1140;
+  let textX = 110, textY = 1140;
   let isDraggingText = false, textDragSX = 0, textDragSY = 0, textOX = 0, textOY = 0;
   let textSelecionado = false; // mostra caixa de seleção ao redor do texto
+  let textBbox = { x: 0, y: 0, w: CW, h: 200 }; // bbox real do texto atualizada a cada render
 
   /* ── Contador de arquivos ── */
   function peekNumero() { return String((parseInt(localStorage.getItem('bds_num')||'0')+1)).padStart(4,'0'); }
@@ -829,12 +830,16 @@
     };
   }
 
-  // Detecta se o clique está perto do texto
+  // Detecta se o clique está dentro do bbox real do texto (funciona em qualquer alinhamento)
   function perto(sx, sy) {
-    const p = screenToCanvas(sx, sy);
-    const dx = Math.abs(p.x - textX);
-    const dy = Math.abs(p.y - textY);
-    return dx < 200 && dy < 120;
+    const p   = screenToCanvas(sx, sy);
+    const pad = 40; // margem extra de toque em pixels do canvas
+    return (
+      p.x >= textBbox.x - pad &&
+      p.x <= textBbox.x + textBbox.w + pad &&
+      p.y >= textBbox.y - pad &&
+      p.y <= textBbox.y + textBbox.h + pad
+    );
   }
 
   cw.addEventListener('mousedown', e => {
@@ -907,9 +912,9 @@
     document.querySelectorAll('.align-opt').forEach(b => b.classList.remove('ativo'));
     if (btn) btn.classList.add('ativo');
     // Ancora posX conforme alinhamento
-    if (align === 'left')   textX = 70;
+    if (align === 'left')   textX = 110;
     if (align === 'center') textX = CW / 2;
-    if (align === 'right')  textX = CW - 70;
+    if (align === 'right')  textX = CW - 110;
     renderizar();
   }
 
@@ -992,6 +997,7 @@
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffffff';
     const bbox = wrapText(ctx, texto, posX, posY, maxWidth, lineHeight, alinhamento);
+    textBbox = bbox; // atualiza bbox global para hit-test do drag
 
     // Desenha seleção retangular se o texto estiver selecionado
     if (textSelecionado) {
