@@ -576,24 +576,22 @@
     document.getElementById('headerStep').textContent = 'Edição';
   }
 
-  /* ── Salvar apenas arte ── */
-  async function somentesSalvar() {
-    textSelecionado = false;
-    await renderizar();
-    const src  = document.getElementById('canvas');
-    const dest = document.getElementById('previewCanvas');
-    dest.width = CW; dest.height = CH;
-    dest.getContext('2d').drawImage(src, 0, 0, CW, CH);
-    const canvas = dest;
+  /* ── Salvar apenas arte ── usa previewCanvas direto, sem re-render ── */
+  function somentesSalvar() {
+    const canvas = document.getElementById('previewCanvas');
     const nome   = 'sortetvnoticia_' + getNumero() + '.png';
-    let dataUrlSave;
-    try { dataUrlSave = canvas.toDataURL('image/png'); }
-    catch(e) { showToast('Abra via servidor local para exportar com layouts.', 'erro'); return; }
-    const a = document.createElement('a');
-    a.href = dataUrlSave;
-    a.download = nome;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    showToast('Arte salva!', 'ok');
+    try {
+      canvas.toBlob(blob => {
+        if (!blob) { showToast('Erro ao gerar imagem.', 'erro'); return; }
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href = url; a.download = nome;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('Arte salva!', 'ok');
+      }, 'image/png', 1.0);
+    } catch(e) { showToast('Erro: ' + e.message, 'erro'); }
   }
 
   /* ── Salvar + Trello ── */
@@ -609,48 +607,49 @@
     btn.disabled = true; btn.textContent = 'Enviando...';
 
     try {
-      // Garante canvas limpo (sem seleção) antes de salvar
-      textSelecionado = false;
-      await renderizar();
-      const srcCanvas  = document.getElementById('canvas');
-      const destCanvas = document.getElementById('previewCanvas');
-      destCanvas.width = CW; destCanvas.height = CH;
-      destCanvas.getContext('2d').drawImage(srcCanvas, 0, 0, CW, CH);
+      // ── Data e hora arredondada pra frente ──
+      const now  = new Date();
+      const h    = now.getMinutes() > 0 ? now.getHours() + 1 : now.getHours();
+      const hora = String(h % 24).padStart(2, '0') + 'H00';
+      const dia  = String(now.getDate()).padStart(2, '0');
+      const mes  = String(now.getMonth() + 1).padStart(2, '0');
+      const ano  = now.getFullYear();
+      const dataStr = `${dia}/${mes}/${ano}`;
 
-      // Download da arte
-      const canvas = destCanvas;
-      let dataURL;
-      try {
-        dataURL = canvas.toDataURL('image/png');
-      } catch(tainted) {
-        showToast('Abra o arquivo via servidor local para exportar com layouts.', 'erro');
-        btn.disabled = false; btn.textContent = 'Salvar + Trello';
-        return;
-      }
-      const numero  = getNumero();
-      const nome    = 'sortetvnoticia_' + numero + '.png';
-      const a = document.createElement('a');
-      a.href = dataURL; a.download = nome;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      // ── Título do card ──
+      const nomeCard = `SORTE TV | NOTÍCIA - ${manchete} [${dataStr} - ${hora}]`;
 
-      // Copiar legenda
-      if (legenda) {
-        try { await navigator.clipboard.writeText(legenda); } catch(e) {}
-      }
+      // ── Descrição do card ──
+      const descricao = `MANCHETE: ${manchete}
 
-      // Descrição do card com legenda
-      const descricao = legenda
-        ? `**LEGENDA DO POST:**\n\n${legenda}`
-        : 'Sem legenda informada.';
+LEGENDA: ${legenda || 'Sem legenda.'}`;
 
-      const due = new Date(); due.setHours(20,0,0,0);
+      // ── Salva a imagem via toBlob (máxima qualidade, sem re-render) ──
+      const canvas = document.getElementById('previewCanvas');
+      const numero = getNumero();
+      const nome   = 'sortetvnoticia_' + numero + '.png';
 
+      await new Promise((res, rej) => {
+        canvas.toBlob(blob => {
+          if (!blob) { rej(new Error('Falha ao gerar imagem.')); return; }
+          const url = URL.createObjectURL(blob);
+          const a   = document.createElement('a');
+          a.href = url; a.download = nome;
+          document.body.appendChild(a); a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          res();
+        }, 'image/png', 1.0);
+      });
+
+      // ── Cria card no Trello ──
+      const due = new Date(); due.setHours(20, 0, 0, 0);
       const resp = await fetch(`https://api.trello.com/1/cards?key=${key}&token=${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           idList: TRELLO_LIST_ID,
-          name: manchete,
+          name: nomeCard,
           desc: descricao,
           due: due.toISOString(),
           idMembers: TRELLO_MEMBROS
@@ -660,11 +659,11 @@
       if (!resp.ok) throw new Error('Trello recusou o acesso.');
       const card = await resp.json();
 
-      // Capa roxa padrão para notícias
+      // ── Capa rosa full ──
       await fetch(`https://api.trello.com/1/cards/${card.id}/cover?key=${key}&token=${token}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ color: 'purple', brightness: 'light', size: 'normal' })
+        body: JSON.stringify({ color: 'pink', brightness: 'light', size: 'full' })
       });
 
       showToast('Arte salva e card criado!', 'ok');
@@ -672,7 +671,6 @@
 
     } catch(err) {
       showToast('Erro: ' + err.message, 'erro');
-      if (err.message.includes('recusou')) abrirConfig();
     } finally {
       btn.disabled = false; btn.textContent = 'Salvar + Trello';
     }
