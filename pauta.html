@@ -654,7 +654,8 @@
     if (!titulo)    { toast('Preencha o título!', 'erro'); return; }
     if (!assunto)   { toast('Preencha o assunto!', 'erro'); return; }
 
-    const post = { canal: canal.value, data, hora, titulo, assunto, categoria: categoria.value, direcionamento: dir, isPromo, trelloCardId: null };
+    const criadoPor = sessionStorage.getItem('bdsUsuario') || 'desconhecido';
+    const post = { canal: canal.value, data, hora, titulo, assunto, categoria: categoria.value, direcionamento: dir, isPromo, trelloCardId: null, criadoPor };
 
     // Desabilita todos os botões
     ['btnAmbos','btnPlanilha','btnTrello'].forEach(id => { const b = document.getElementById(id); if(b){ b.disabled = true; } });
@@ -783,6 +784,9 @@
           </div>
           <div class="card-titulo">${post.titulo}</div>
           <div class="card-meta">${post.categoria} · ${assuntoLabel}</div>
+          <div style="font-size:10px;color:var(--muted);font-weight:500;margin-top:2px;opacity:0.7;">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>${post.criadoPor || '–'}
+          </div>
           <div class="card-acoes">
             <button class="btn-acao ver" onclick='abrirVer(${JSON.stringify(post)})'>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
