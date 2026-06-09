@@ -854,17 +854,35 @@
       try {
         const { FFmpeg }    = await import('https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/esm/index.js');
         const { toBlobURL } = await import('https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js');
-        ffmpegInst = new FFmpeg();
-        ffmpegInst.on('progress', ({ progress }) => {
+
+        const inst = new FFmpeg();
+        inst.on('log', ({ message }) => console.log('[FFmpeg]', message));
+        inst.on('progress', ({ progress }) => {
           const pct = Math.round((progress || 0) * 100);
           document.getElementById('procPct').textContent = pct + '%';
           document.getElementById('procBar').style.width = pct + '%';
         });
-        setMsg('Baixando core do FFmpeg (~30MB primeira vez)...');
-        await ffmpegInst.load({
-          coreURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',  'text/javascript'),
-          wasmURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm','application/wasm'),
-        });
+
+        setMsg('Baixando core do FFmpeg (~30MB na primeira vez)...');
+
+        // tenta jsdelivr, se falhar tenta unpkg
+        let loaded = false;
+        for (const base of [
+          'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd',
+          'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
+        ]) {
+          try {
+            await inst.load({
+              coreURL: await toBlobURL(`${base}/ffmpeg-core.js`,   'text/javascript'),
+              wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+            });
+            loaded = true;
+            break;
+          } catch(e) { console.warn('CDN falhou, tentando próximo...', e); }
+        }
+
+        if (!loaded) throw new Error('Nenhum CDN respondeu. Verifique sua conexão.');
+        ffmpegInst = inst; // só seta depois do load ter sucesso
       } catch(err) {
         document.getElementById('processingOverlay').classList.remove('active');
         showToast('Erro ao carregar FFmpeg: ' + err.message, 'erro');
