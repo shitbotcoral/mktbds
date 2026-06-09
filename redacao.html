@@ -626,7 +626,8 @@
       const nomeCard = `SORTE TV | NOTÍCIA - ${manchete} [${dataStr} - ${hora}]`;
 
       // ── Descrição do card ──
-      const descricao = `MANCHETE: ${manchete}\n\nLEGENDA: ${legenda || 'Sem legenda.'}`;
+      const usuario   = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
+      const descricao = `**REDATOR:** ${usuario}\n**MANCHETE:** ${manchete}\n\n**LEGENDA:**\n${legenda || 'Sem legenda.'}`;
 
       // ── Gera blob da imagem ──
       const prev2 = document.getElementById('previewCanvas');

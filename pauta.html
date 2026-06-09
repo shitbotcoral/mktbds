@@ -694,7 +694,8 @@
     try {
       const assuntoLabel = post.assunto + (post.isPromo ? ' PROMO' : '');
       const nome = `${post.canal} | ${assuntoLabel} — ${post.titulo} [${post.data} ${post.hora}]`;
-      const desc = `CANAL: ${post.canal}\nAGENDAMENTO: ${post.data} ÀS ${post.hora}\nCATEGORIA: ${post.categoria}\nASSUNTO: ${assuntoLabel}\n\nDIRECIONAMENTO:\n${post.direcionamento || 'Nenhum.'}`;
+      const usuario = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
+      const desc = `${usuario}\n\n**CANAL:** ${post.canal}\n**AGENDAMENTO:** ${post.data} ÀS ${post.hora}\n**CATEGORIA:** ${post.categoria}\n**ASSUNTO:** ${assuntoLabel}\n\n**DIRECIONAMENTO:**\n${post.direcionamento || 'Nenhum.'}`;
 
       const due = new Date(); due.setHours(20,0,0,0);
 
@@ -815,9 +816,13 @@
     document.getElementById('modalVer').classList.add('open');
   }
 
+  let originalSnapshot = null; // guarda estado antes da edição
+
   function abrirEditar(idx) {
     editIdx = idx;
     const p = dbPosts[idx];
+    // Salva snapshot para identificar a linha na planilha
+    originalSnapshot = { titulo: p.titulo, data: p.data, hora: p.hora };
     document.querySelectorAll('input[name="eCanal"]').forEach(r => r.checked = r.value === p.canal);
     document.getElementById('eData').value = p.data;
     document.getElementById('eHora').value = p.hora;
@@ -852,9 +857,16 @@
     renderCronograma();
     toast('Atualizando...', '');
 
-    // ── Sincroniza com Planilha ──
+    // ── Sincroniza com Planilha — envia snapshot original para localizar a linha ──
     try {
-      await fetch(CFG.planilha + '?dados=' + encodeURIComponent(JSON.stringify({ ...postAtualizado, action: 'update' })), { method:'GET', mode:'no-cors' });
+      const payload = {
+        ...postAtualizado,
+        action: 'update',
+        originalTitulo: originalSnapshot?.titulo || postAtualizado.titulo,
+        originalData:   originalSnapshot?.data   || postAtualizado.data,
+        originalHora:   originalSnapshot?.hora   || postAtualizado.hora,
+      };
+      await fetch(CFG.planilha + '?dados=' + encodeURIComponent(JSON.stringify(payload)), { method:'GET', mode:'no-cors' });
     } catch(e) {}
 
     // ── Sincroniza com Trello se tiver cardId ──
@@ -862,7 +874,8 @@
       try {
         const assuntoLabel = postAtualizado.assunto + (postAtualizado.isPromo ? ' PROMO' : '');
         const nomeCard = `${postAtualizado.canal} | ${assuntoLabel} — ${postAtualizado.titulo} [${postAtualizado.data} ${postAtualizado.hora}]`;
-        const desc = `CANAL: ${postAtualizado.canal}\nAGENDAMENTO: ${postAtualizado.data} ÀS ${postAtualizado.hora}\nCATEGORIA: ${postAtualizado.categoria}\nASSUNTO: ${assuntoLabel}\n\nDIRECIONAMENTO:\n${postAtualizado.direcionamento || 'Nenhum.'}`;
+        const usuarioEdit = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
+        const desc = `${usuarioEdit}\n\n**CANAL:** ${postAtualizado.canal}\n**AGENDAMENTO:** ${postAtualizado.data} ÀS ${postAtualizado.hora}\n**CATEGORIA:** ${postAtualizado.categoria}\n**ASSUNTO:** ${assuntoLabel}\n\n**DIRECIONAMENTO:**\n${postAtualizado.direcionamento || 'Nenhum.'}`;
 
         await fetch(`https://api.trello.com/1/cards/${postAtualizado.trelloCardId}?key=${CFG.trelloKey}&token=${CFG.trelloToken}`, {
           method: 'PUT',
