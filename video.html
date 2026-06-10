@@ -856,7 +856,7 @@
 
     try {
       // Stream do canvas (renderiza vídeo + overlay + texto)
-      const canvasStream = canvas.captureStream(30);
+      const canvasStream = canvas.captureStream(0);
 
       // Adiciona áudio do vídeo se disponível
       if (videoEl.captureStream) {
@@ -879,25 +879,89 @@
       setMsg(`Gravando ${duracao}s de vídeo em tempo real...`);
       document.getElementById('procPct').textContent = '0%';
 
+      // Para o loop de preview — vai usar loop dedicado durante a gravação
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
+      // Pré-renderiza overlay + texto em canvas estático (não muda durante a gravação)
+      const staticCanvas = document.createElement('canvas');
+      staticCanvas.width  = CW;
+      staticCanvas.height = CH;
+      const sCtx = staticCanvas.getContext('2d');
+      if (overlayImg) sCtx.drawImage(overlayImg, 0, 0, CW, CH);
+      const texto = document.getElementById('textInput').value.toUpperCase();
+      if (texto.trim()) {
+        const fs = parseInt(document.getElementById('fontSize').value);
+        const lh = parseInt(document.getElementById('lineHeight').value);
+        const mw = parseInt(document.getElementById('maxWidth').value);
+        sCtx.font = `${fs}px 'Bebas Neue', sans-serif`;
+        sCtx.textBaseline = 'middle';
+        sCtx.fillStyle = '#ffffff';
+        wrapText(sCtx, texto, textX, textY, mw, lh, alinhamento);
+      }
+
+      // Track de vídeo pra controle manual de frames
+      const videoTrack = canvasStream.getVideoTracks()[0];
+
       recorder.start(100);
-      videoEl.muted = false; // garante áudio na gravação
+      videoEl.muted = false;
       await videoEl.play();
 
-      // Acompanha progresso
+      // Função de render otimizada: só desenha vídeo + overlay pré-renderizado
+      const renderRec = () => {
+        ctx.clearRect(0, 0, CW, CH);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, CW, CH);
+        // Frame do vídeo
+        const zoom = parseInt(document.getElementById('zoomVid').value) / 100;
+        ctx.drawImage(videoEl,
+          vidOffX, vidOffY,
+          videoEl.videoWidth  * vidScale * zoom,
+          videoEl.videoHeight * vidScale * zoom
+        );
+        // Overlay + texto pré-renderizado (uma única drawImage)
+        ctx.drawImage(staticCanvas, 0, 0);
+        // Notifica o MediaRecorder que tem frame novo
+        if (videoTrack) videoTrack.requestFrame();
+      };
+
       await new Promise(resolve => {
-        const check = () => {
-          const prog = (videoEl.currentTime - trimStart) / (trimEnd - trimStart);
-          const pct  = Math.min(100, Math.round(prog * 100));
-          document.getElementById('procPct').textContent = pct + '%';
-          document.getElementById('procBar').style.width  = pct + '%';
-          if (videoEl.currentTime >= trimEnd - 0.05) {
-            videoEl.pause(); videoEl.muted = true; resolve();
-          } else {
-            requestAnimationFrame(check);
-          }
+        const updateProg = () => {
+          const prog = Math.min(1, (videoEl.currentTime - trimStart) / (trimEnd - trimStart));
+          document.getElementById('procPct').textContent = Math.round(prog * 100) + '%';
+          document.getElementById('procBar').style.width  = Math.round(prog * 100) + '%';
         };
-        requestAnimationFrame(check);
+
+        if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+          // Melhor método: renderiza exatamente quando o vídeo tem frame novo
+          const onFrame = (now, meta) => {
+            renderRec();
+            updateProg();
+            if (videoEl.currentTime >= trimEnd - 0.05 || videoEl.paused) {
+              videoEl.pause(); videoEl.muted = true; resolve();
+            } else {
+              videoEl.requestVideoFrameCallback(onFrame);
+            }
+          };
+          videoEl.requestVideoFrameCallback(onFrame);
+        } else {
+          // Fallback: RAF com renderização manual
+          let recRaf;
+          const recLoop = () => {
+            renderRec();
+            updateProg();
+            if (videoEl.currentTime >= trimEnd - 0.05 || videoEl.paused) {
+              videoEl.pause(); videoEl.muted = true;
+              cancelAnimationFrame(recRaf); resolve();
+            } else {
+              recRaf = requestAnimationFrame(recLoop);
+            }
+          };
+          recRaf = requestAnimationFrame(recLoop);
+        }
       });
+
+      // Religa o preview normal
+      startRenderLoop();
 
       recorder.stop();
       setMsg('Finalizando arquivo...');
