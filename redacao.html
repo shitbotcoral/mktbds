@@ -551,6 +551,8 @@
   let isDraggingText = false, textDragSX = 0, textDragSY = 0, textOX = 0, textOY = 0;
   let textSelecionado = false; // mostra caixa de seleção ao redor do texto
   let textBbox = { x: 0, y: 0, w: CW, h: 200 }; // bbox real do texto atualizada a cada render
+  let snapX = false, snapY = false; // travas magnéticas de centro horizontal/vertical
+  const SNAP_THRESHOLD = 26; // distância em px do canvas para "encaixar" no centro
 
   /* ── Contador de arquivos ── */
   function peekNumero() { return String((parseInt(localStorage.getItem('bds_num')||'0')+1)).padStart(4,'0'); }
@@ -804,7 +806,11 @@
     cropY = dragOY + (e.clientY - dragSY) * s;
     clampCrop(); renderizar();
   });
-  window.addEventListener('mouseup', () => { isDragging = false; isDraggingText = false; });
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    if (isDraggingText && (snapX || snapY)) { snapX = false; snapY = false; renderizar(); }
+    isDraggingText = false;
+  });
 
   cw.addEventListener('touchstart', e => {
     if (!imgBgObj || abaAtiva !== 'tFundo') return;
@@ -817,7 +823,11 @@
     cropY = dragOY + (e.touches[0].clientY - dragSY) * s;
     clampCrop(); renderizar();
   }, {passive:true});
-  window.addEventListener('touchend', () => { isDragging = false; isDraggingText = false; });
+  window.addEventListener('touchend', () => {
+    isDragging = false;
+    if (isDraggingText && (snapX || snapY)) { snapX = false; snapY = false; renderizar(); }
+    isDraggingText = false;
+  });
 
   /* ── Drag do TEXTO no canvas ── */
   // Converte coordenada de tela → coordenada do canvas 1080x1440
@@ -848,6 +858,7 @@
     if (perto(e.clientX, e.clientY)) {
       isDraggingText = true;
       textSelecionado = true;
+      snapX = false; snapY = false;
       textDragSX = e.clientX; textDragSY = e.clientY;
       textOX = textX; textOY = textY;
       e.stopPropagation();
@@ -863,7 +874,7 @@
     const p1 = screenToCanvas(e.clientX, e.clientY);
     textX = Math.max(0, Math.min(CW, textOX + (p1.x - p0.x)));
     textY = Math.max(0, Math.min(CH, textOY + (p1.y - p0.y)));
-    renderizar();
+    aplicarSnapTexto();
   });
 
   cw.addEventListener('touchstart', e => {
@@ -871,6 +882,7 @@
     if (perto(e.touches[0].clientX, e.touches[0].clientY)) {
       isDraggingText = true;
       textSelecionado = true;
+      snapX = false; snapY = false;
       textDragSX = e.touches[0].clientX; textDragSY = e.touches[0].clientY;
       textOX = textX; textOY = textY;
       e.stopPropagation();
@@ -886,7 +898,7 @@
     const p1 = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
     textX = Math.max(0, Math.min(CW, textOX + (p1.x - p0.x)));
     textY = Math.max(0, Math.min(CH, textOY + (p1.y - p0.y)));
-    renderizar();
+    aplicarSnapTexto();
   }, {passive:true});
 
   /* ── Layout select ── */
@@ -916,6 +928,50 @@
     if (align === 'left')   textX = 110;
     if (align === 'center') textX = CW / 2;
     if (align === 'right')  textX = CW - 110;
+    renderizar();
+  }
+
+  /* ── Snap magnético de centro ── */
+  // Calcula o bbox do texto sem precisar re-renderizar tudo (mede via ctx)
+  function computeTextBbox(x, y) {
+    const ctx = document.getElementById('canvas').getContext('2d');
+    const texto      = document.getElementById('textInput').value.toUpperCase();
+    const fontSize   = parseInt(document.getElementById('fontSize').value);
+    const lineHeight = parseInt(document.getElementById('lineHeight').value);
+    const maxWidth   = parseInt(document.getElementById('maxWidth').value);
+    ctx.font = `${fontSize}px 'Bebas Neue', sans-serif`;
+
+    const words = texto.split(' ');
+    let line = '', lines = [];
+    words.forEach((w, n) => {
+      const t = line + w + ' ';
+      if (ctx.measureText(t).width > maxWidth && n > 0) { lines.push(line.trim()); line = w + ' '; }
+      else line = t;
+    });
+    lines.push(line.trim());
+
+    const startY = y - (lines.length * lineHeight / 2) + lineHeight / 2;
+    let maxW = 0;
+    lines.forEach(l => { const m = ctx.measureText(l).width; if (m > maxW) maxW = m; });
+    const totalH = lines.length * lineHeight;
+    let bx = x;
+    if (alinhamento === 'center') bx = x - maxW / 2;
+    if (alinhamento === 'right')  bx = x - maxW;
+    return { x: bx, y: startY - lineHeight / 2, w: maxW, h: totalH };
+  }
+
+  // Aplica trava magnética de centro horizontal/vertical durante o drag
+  function aplicarSnapTexto() {
+    const bbox = computeTextBbox(textX, textY);
+    const centerX = bbox.x + bbox.w / 2;
+    const centerY = bbox.y + bbox.h / 2;
+
+    snapX = Math.abs(centerX - CW / 2) < SNAP_THRESHOLD;
+    snapY = Math.abs(centerY - CH / 2) < SNAP_THRESHOLD;
+
+    if (snapX) textX += (CW / 2 - centerX);
+    if (snapY) textY += (CH / 2 - centerY);
+
     renderizar();
   }
 
@@ -1027,8 +1083,27 @@
       ctx.strokeRect(rx - 4, ry - 4, rw + 8, rh + 8);
 
       ctx.restore();
+    }
 
-
+    // Linhas-guia de centralização (aparecem ao encaixar no centro durante o drag)
+    if (snapX || snapY) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,183,0,0.85)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([16, 12]);
+      if (snapX) {
+        ctx.beginPath();
+        ctx.moveTo(CW / 2, 0);
+        ctx.lineTo(CW / 2, CH);
+        ctx.stroke();
+      }
+      if (snapY) {
+        ctx.beginPath();
+        ctx.moveTo(0, CH / 2);
+        ctx.lineTo(CW, CH / 2);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
   }
 

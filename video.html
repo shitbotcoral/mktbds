@@ -132,6 +132,28 @@
     }
     .time-label { font-size: 10px; font-weight: 600; color: var(--muted); white-space: nowrap; }
 
+    /* ── Steps ── */
+    .step { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    .step.active { display: flex; }
+
+    .header-step {
+      font-size: 10px; font-weight: 600; color: var(--muted);
+      letter-spacing: 1px; text-transform: uppercase;
+    }
+
+    .legenda {
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-family: 'Inter', sans-serif; font-weight: 500; font-size: 14px;
+      padding: 13px; resize: none; min-height: 130px;
+      width: 100%; outline: none; line-height: 1.6;
+      transition: border-color 0.2s;
+    }
+    .legenda:focus { border-color: var(--blue); }
+    .legenda::placeholder { color: var(--muted); font-weight: 400; }
+
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
     /* ── Tabs ── */
     .tabs-nav {
       display: flex; flex-shrink: 0;
@@ -303,7 +325,10 @@
       </a>
       <div class="header-title">Criador de <span>Vídeo</span></div>
     </div>
-    <div class="header-badge">v2.0</div>
+    <div class="header-right" style="display:flex;align-items:center;gap:8px;">
+      <span class="header-step" id="headerStep">Edição</span>
+      <div class="header-badge">v2.0</div>
+    </div>
   </header>
 
   <!-- ── Canvas + Controles ── -->
@@ -330,6 +355,9 @@
     </div>
     <input type="file" id="videoInput" accept="video/mp4,video/*" style="display:none">
   </div>
+
+  <!-- ── STEP 1: EDIÇÃO ── -->
+  <div id="s1" class="step active">
 
   <!-- ── Tabs ── -->
   <div class="tabs-nav">
@@ -446,10 +474,43 @@
   </div>
 
   <div class="footer">
-    <button class="btn btn-accent" id="btnProcessar" onclick="processarVideo()" disabled>
-      Gravar e Baixar
+    <button class="btn btn-accent" id="btnProsseguir" onclick="irParaRevisao()" disabled>
+      Prosseguir para Revisão
     </button>
   </div>
+
+  </div><!-- /#s1 -->
+
+  <!-- ── STEP 2: REVISÃO ── -->
+  <div id="s2" class="step">
+    <div class="scroll">
+      <div class="bloco">
+        <div class="bloco-head">
+          <span class="bloco-titulo">Legenda do Post</span>
+          <span style="font-size:10px;color:var(--muted);font-weight:500;">Instagram</span>
+        </div>
+        <div class="bloco-body">
+          <textarea class="legenda" id="legendaInput" placeholder="Escreva a legenda completa aqui 🔥&#10;&#10;Emojis, hashtags, quebras de linha — tudo liberado. Sem limite de caracteres."></textarea>
+        </div>
+      </div>
+      <div class="bloco">
+        <div class="bloco-head"><span class="bloco-titulo">Exportar</span></div>
+        <div class="bloco-body">
+          <div style="font-size:12px;color:var(--muted);font-weight:500;line-height:1.5;">
+            O vídeo será gravado em tempo real com o overlay e texto aplicados, e baixado em formato <strong style="color:var(--accent);">.webm</strong>.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer" style="gap:10px;">
+      <button class="btn btn-outline" style="flex:0 0 auto;padding:14px;" onclick="voltarEditor()" title="Voltar para edição">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <button class="btn btn-accent" id="btnProcessar" onclick="processarVideo()">
+        Gravar e Baixar
+      </button>
+    </div>
+  </div><!-- /#s2 -->
 
   <div id="toast"></div>
 </div>
@@ -470,6 +531,8 @@
   let textX = 110, textY = 1700, alinhamento = 'left';
   let textSelecionado = false;
   let textBbox = { x:0, y:0, w: CW, h:200 };
+  let snapX = false, snapY = false; // travas magnéticas de centro
+  const SNAP_THRESHOLD = 26;
   let isDraggingText = false;
   let textDragSX = 0, textDragSY = 0, textOX = 0, textOY = 0;
 
@@ -501,6 +564,23 @@
 
   canvas.width  = CW;
   canvas.height = CH;
+
+  /* ─── Steps: Edição <-> Revisão ─── */
+  function irParaRevisao() {
+    if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return; }
+    // Garante que nenhuma seleção/guia fique visível na prévia
+    textSelecionado = false; snapX = false; snapY = false;
+    renderFrame();
+    document.getElementById('headerStep').textContent = 'Revisão';
+    document.getElementById('s1').classList.remove('active');
+    document.getElementById('s2').classList.add('active');
+  }
+
+  function voltarEditor() {
+    document.getElementById('s2').classList.remove('active');
+    document.getElementById('s1').classList.add('active');
+    document.getElementById('headerStep').textContent = 'Edição';
+  }
 
   /* ─── Navegação ─── */
   function ir(url) {
@@ -554,7 +634,7 @@
     videoLoaded = true;
     document.getElementById('uploadHint').classList.add('gone');
     document.getElementById('videoControls').style.display = 'flex';
-    document.getElementById('btnProcessar').disabled = false;
+    document.getElementById('btnProsseguir').disabled = false;
 
     // Info do arquivo
     const mb = (videoFile.size / 1024 / 1024).toFixed(1);
@@ -575,8 +655,14 @@
     if (videoEl.currentTime >= trimEnd) { videoEl.pause(); videoEl.currentTime = trimStart; updatePlayBtn(); }
   });
 
-  videoEl.addEventListener('play',  updatePlayBtn);
-  videoEl.addEventListener('pause', updatePlayBtn);
+  videoEl.addEventListener('play', () => {
+    updatePlayBtn();
+    startRenderLoop(); // religa o loop sincronizado ao vídeo
+  });
+  videoEl.addEventListener('pause', () => {
+    updatePlayBtn();
+    renderFrame(); // garante frame estático atualizado
+  });
 
   /* ─── Play/Pause ─── */
   function togglePlay() {
@@ -608,14 +694,28 @@
     return m + ':' + String(sec).padStart(2,'0');
   }
 
-  /* ─── Render Loop ─── */
+  /* ─── Render Loop ───
+     Sincroniza a renderização com o frame rate real do vídeo
+     (evita redesenhar a 60-144Hz quando o vídeo está a 24-30fps) ─── */
   function startRenderLoop() {
-    if (rafId) cancelAnimationFrame(rafId);
-    function loop() {
-      renderFrame();
-      rafId = requestAnimationFrame(loop);
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
+    if (videoLoaded && 'requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+      const loop = () => {
+        renderFrame();
+        if (!videoEl.paused) {
+          videoEl.requestVideoFrameCallback(loop);
+        }
+      };
+      videoEl.requestVideoFrameCallback(loop); // renderiza ao menos 1x mesmo pausado
+    } else {
+      // Fallback (browsers sem suporte): loop contínuo via RAF
+      function loop() {
+        renderFrame();
+        rafId = requestAnimationFrame(loop);
+      }
+      loop();
     }
-    loop();
   }
 
   function renderFrame() {
@@ -670,6 +770,17 @@
         ctx.strokeRect(bbox.x - pad - 4, bbox.y - pad - 4, bbox.w + pad*2 + 8, bbox.h + pad*2 + 8);
         ctx.restore();
       }
+    }
+
+    // Linhas-guia de centralização (durante o snap)
+    if (snapX || snapY) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,183,0,0.85)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([16, 12]);
+      if (snapX) { ctx.beginPath(); ctx.moveTo(CW/2, 0); ctx.lineTo(CW/2, CH); ctx.stroke(); }
+      if (snapY) { ctx.beginPath(); ctx.moveTo(0, CH/2); ctx.lineTo(CW, CH/2); ctx.stroke(); }
+      ctx.restore();
     }
   }
 
@@ -739,6 +850,21 @@
     renderFrame();
   }
 
+  /* ─── Snap magnético de centro ─── */
+  function aplicarSnapTexto() {
+    renderFrame(); // atualiza textBbox com a posição atual
+    const centerX = textBbox.x + textBbox.w / 2;
+    const centerY = textBbox.y + textBbox.h / 2;
+
+    snapX = Math.abs(centerX - CW / 2) < SNAP_THRESHOLD;
+    snapY = Math.abs(centerY - CH / 2) < SNAP_THRESHOLD;
+
+    if (snapX) textX += (CW / 2 - centerX);
+    if (snapY) textY += (CH / 2 - centerY);
+
+    renderFrame();
+  }
+
   /* ─── Drag do texto ─── */
   function screenToCanvas(sx, sy) {
     const rect = cw.getBoundingClientRect();
@@ -755,6 +881,7 @@
     if (abaAtiva === 'tTexto') {
       if (pertoDoBbox(e.clientX, e.clientY)) {
         isDraggingText = true; textSelecionado = true;
+        snapX = false; snapY = false;
         textDragSX = e.clientX; textDragSY = e.clientY;
         textOX = textX; textOY = textY; e.stopPropagation();
       } else if (textSelecionado) { textSelecionado = false; renderFrame(); }
@@ -767,15 +894,19 @@
     const p1 = screenToCanvas(e.clientX, e.clientY);
     textX = Math.max(0, Math.min(CW, textOX + p1.x - p0.x));
     textY = Math.max(0, Math.min(CH, textOY + p1.y - p0.y));
-    renderFrame();
+    aplicarSnapTexto();
   });
 
-  window.addEventListener('mouseup', () => isDraggingText = false);
+  window.addEventListener('mouseup', () => {
+    if (isDraggingText && (snapX || snapY)) { snapX = false; snapY = false; renderFrame(); }
+    isDraggingText = false;
+  });
 
   cw.addEventListener('touchstart', e => {
     if (abaAtiva === 'tTexto') {
       if (pertoDoBbox(e.touches[0].clientX, e.touches[0].clientY)) {
         isDraggingText = true; textSelecionado = true;
+        snapX = false; snapY = false;
         textDragSX = e.touches[0].clientX; textDragSY = e.touches[0].clientY;
         textOX = textX; textOY = textY; e.stopPropagation();
       } else if (textSelecionado) { textSelecionado = false; renderFrame(); }
@@ -788,10 +919,13 @@
     const p1 = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
     textX = Math.max(0, Math.min(CW, textOX + p1.x - p0.x));
     textY = Math.max(0, Math.min(CH, textOY + p1.y - p0.y));
-    renderFrame();
+    aplicarSnapTexto();
   }, {passive:true});
 
-  window.addEventListener('touchend', () => isDraggingText = false);
+  window.addEventListener('touchend', () => {
+    if (isDraggingText && (snapX || snapY)) { snapX = false; snapY = false; renderFrame(); }
+    isDraggingText = false;
+  });
 
   /* ─── Trim ─── */
   function updateTrimUI() {
@@ -851,6 +985,12 @@
     if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return; }
     if (!window.MediaRecorder) { showToast('MediaRecorder não suportado neste browser.', 'erro'); return; }
 
+    // Garante canvas limpo, sem caixa de seleção ou linhas-guia, antes de gravar
+    textSelecionado = false;
+    snapX = false; snapY = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    renderFrame();
+
     const overlay = document.getElementById('processingOverlay');
     overlay.classList.add('active');
 
@@ -878,9 +1018,6 @@
       const duracao = Math.round(trimEnd - trimStart);
       setMsg(`Gravando ${duracao}s de vídeo em tempo real...`);
       document.getElementById('procPct').textContent = '0%';
-
-      // Para o loop de preview — vai usar loop dedicado durante a gravação
-      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 
       // Pré-renderiza overlay + texto em canvas estático (não muda durante a gravação)
       const staticCanvas = document.createElement('canvas');
