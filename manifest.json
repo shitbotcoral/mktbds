@@ -1,0 +1,24 @@
+{
+  "name": "Marketing BDS",
+  "short_name": "BDS",
+  "description": "Painel de Marketing Digital - Bet Dá Sorte",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#02122c",
+  "theme_color": "#ffb700",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "img/icone.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "img/icone.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
