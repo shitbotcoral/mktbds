@@ -1370,42 +1370,38 @@
 
       setMsg('Codificando vídeo... (aguarde)');
 
-      // ── 8. Loop frame a frame via requestVideoFrameCallback ──
+      // ── 8. Loop frame a frame — síncrono, sem await no callback ──
       await new Promise((resolve, reject) => {
-        const onFrame = async (now, meta) => {
+        const onFrame = (now, meta) => { // NÃO é async — callback síncrono = sem frame drop
           try {
-            // Renderiza frame atual do vídeo + overlay estático
-            const frameOC = new OffscreenCanvas(vW, vH);
-            const fCtx = frameOC.getContext('2d');
+            if (videoEncoder.state === 'closed') {
+              throw videoEncoderError || new Error('VideoEncoder fechou durante encoding');
+            }
 
+            // Renderiza: síncrono, sem createImageBitmap
             fCtx.fillStyle = '#000';
             fCtx.fillRect(0, 0, vW, vH);
-
             fCtx.drawImage(videoEl,
               vidOffX, vidOffY,
               videoEl.videoWidth  * vidScale * zoom,
               videoEl.videoHeight * vidScale * zoom
             );
-
             fCtx.drawImage(overlayBitmap, 0, 0);
 
-            // Converte pra ImageBitmap (mais estável pro VideoFrame)
-            const bitmap = await createImageBitmap(frameOC);
+            // VideoFrame direto do OffscreenCanvas (síncrono no Chrome/Edge)
             const ts = Math.max(0, Math.round(meta.mediaTime * 1_000_000) - trimOffsetUs);
-            const frame = new VideoFrame(bitmap, {
+            const frame = new VideoFrame(frameOC, {
               timestamp: ts,
               duration:  Math.round(1_000_000 / 30),
             });
-            bitmap.close();
 
             try {
               videoEncoder.encode(frame, { keyFrame: frameIdx % 60 === 0 });
             } finally {
-              frame.close(); // garante close mesmo se encode falhar
+              frame.close();
             }
             frameIdx++;
 
-            // Progresso (0-90% pra vídeo, 90-100% pro áudio+mux)
             const pct = Math.min(90, Math.round(((videoEl.currentTime - trimStart) / (trimEnd - trimStart)) * 90));
             document.getElementById('procPct').textContent = pct + '%';
             document.getElementById('procBar').style.width = pct + '%';
