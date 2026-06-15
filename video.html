@@ -1286,32 +1286,64 @@
       }
       const muxer = new Muxer(muxerCfg);
 
-      // ── 5. VideoEncoder ──
+      // ── 5. VideoEncoder — testa codec suportado antes de configurar ──
+      // Level 4.0+ obrigatório para 1080×1920 (Level 3.1 suporta só até 1280×720)
+      const codecCandidates = [
+        'avc1.640028', // H.264 High Profile Level 4.0   ← ideal
+        'avc1.4d0028', // H.264 Main Profile Level 4.0
+        'avc1.420028', // H.264 Baseline Level 4.0
+        'avc1.640032', // H.264 High Profile Level 5.0   ← fallback amplo
+        'avc1.4d0032', // H.264 Main Profile Level 5.0
+      ];
+      let videoConfig = null;
+      for (const codec of codecCandidates) {
+        try {
+          const { supported } = await VideoEncoder.isConfigSupported({
+            codec, width: vW, height: vH, bitrate: 8_000_000
+          });
+          if (supported) { videoConfig = { codec, width: vW, height: vH, bitrate: 8_000_000 }; break; }
+        } catch(e) { /* tenta próximo */ }
+      }
+      if (!videoConfig) throw new Error('Nenhum codec H.264 suportado neste browser. Use Chrome ou Edge atualizado.');
+
+      let videoEncoderError = null;
       const videoEncoder = new VideoEncoder({
         output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-        error: (e) => console.error('VideoEncoder:', e),
+        error: (e) => { videoEncoderError = e; console.error('VideoEncoder erro:', e); },
       });
-      videoEncoder.configure({
-        codec: 'avc1.42001f',
-        width: vW, height: vH,
-        bitrate: 8_000_000,
-        framerate: 30,
-        latencyMode: 'quality',
-      });
+      videoEncoder.configure(videoConfig);
+
+      // Aguarda um tick pra erro de configure se propagar
+      await new Promise(r => setTimeout(r, 50));
+      if (videoEncoder.state === 'closed') {
+        throw videoEncoderError || new Error('VideoEncoder fechou após configure(). Codec: ' + videoConfig.codec);
+      }
+      console.log('[VideoEncoder] OK — codec:', videoConfig.codec, '| state:', videoEncoder.state);
 
       // ── 6. AudioEncoder (se houver áudio) ──
       let audioEncoder = null;
       if (audioBuffer) {
+        let audioEncoderError = null;
         audioEncoder = new AudioEncoder({
           output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-          error: (e) => console.warn('AudioEncoder:', e),
+          error: (e) => { audioEncoderError = e; console.warn('AudioEncoder erro:', e); },
         });
-        audioEncoder.configure({
-          codec: 'mp4a.40.2',
-          sampleRate: audioBuffer.sampleRate,
-          numberOfChannels: audioBuffer.numberOfChannels,
-          bitrate: 128_000,
-        });
+        try {
+          audioEncoder.configure({
+            codec: 'mp4a.40.2',
+            sampleRate: audioBuffer.sampleRate,
+            numberOfChannels: audioBuffer.numberOfChannels,
+            bitrate: 128_000,
+          });
+          await new Promise(r => setTimeout(r, 50));
+          if (audioEncoder.state === 'closed') {
+            console.warn('AudioEncoder fechou — continuando sem áudio.');
+            audioEncoder = null;
+          }
+        } catch(e) {
+          console.warn('AudioEncoder configure falhou — sem áudio:', e);
+          audioEncoder = null;
+        }
       }
 
       // ── 7. Seek pro início do trecho ──
@@ -1321,6 +1353,10 @@
       const zoom = parseInt(document.getElementById('zoomVid').value) / 100;
       const trimOffsetUs = Math.round(trimStart * 1_000_000);
       let frameIdx = 0;
+
+      // OffscreenCanvas reutilizado em todos os frames (menos GC, menos memória)
+      const frameOC = new OffscreenCanvas(vW, vH);
+      const fCtx = frameOC.getContext('2d');
 
       setMsg('Codificando vídeo... (aguarde)');
 
@@ -1352,8 +1388,11 @@
             });
             bitmap.close();
 
-            videoEncoder.encode(frame, { keyFrame: frameIdx % 60 === 0 });
-            frame.close();
+            try {
+              videoEncoder.encode(frame, { keyFrame: frameIdx % 60 === 0 });
+            } finally {
+              frame.close(); // garante close mesmo se encode falhar
+            }
             frameIdx++;
 
             // Progresso (0-90% pra vídeo, 90-100% pro áudio+mux)
