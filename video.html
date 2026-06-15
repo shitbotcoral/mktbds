@@ -132,9 +132,53 @@
     }
     .time-label { font-size: 10px; font-weight: 600; color: var(--muted); white-space: nowrap; }
 
+    /* ── Header logo (clicável -> hub) ── */
+    .header-logo {
+      height: 22px; width: auto; cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .header-logo:hover { opacity: 0.8; }
+
     /* ── Steps ── */
     .step { display: none; flex-direction: column; flex: 1; overflow: hidden; }
     .step.active { display: flex; }
+
+    /* ── Preview de vídeo (revisão) ── */
+    .preview-scroll { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+    .preview-scroll::-webkit-scrollbar { width: 3px; }
+    .preview-scroll::-webkit-scrollbar-thumb { background: var(--border); }
+    #previewVideo {
+      width: 60%; aspect-ratio: 9/16; border-radius: 8px;
+      border: 1px solid var(--border); display: block;
+      background: #000; box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    }
+
+    .btn-blue { background: var(--blue); color: #fff; box-shadow: 0 3px 0 var(--blue-d); }
+    .btn-blue:active { box-shadow: none; }
+
+    /* ── Notícias ── */
+    .noticia-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px; border-radius: 8px;
+      background: var(--bg); border: 1px solid var(--border);
+      text-decoration: none; color: var(--text);
+      transition: border-color 0.15s;
+    }
+    .noticia-item:hover { border-color: var(--accent); }
+    .noticia-thumb {
+      width: 44px; height: 58px; border-radius: 6px; object-fit: cover;
+      background: var(--surface); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); border: 1px solid var(--border);
+    }
+    .noticia-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .noticia-titulo {
+      font-size: 12px; font-weight: 600; line-height: 1.3;
+      overflow: hidden; text-overflow: ellipsis;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .noticia-data { font-size: 10px; font-weight: 500; color: var(--muted); }
+    .noticia-arrow { color: var(--border); flex-shrink: 0; }
 
     .header-step {
       font-size: 10px; font-weight: 600; color: var(--muted);
@@ -310,10 +354,10 @@
   <!-- ── Processing Overlay ── -->
   <div class="processing-overlay" id="processingOverlay">
     <div class="processing-icon"></div>
-    <div class="processing-title">Processando Vídeo</div>
+    <div class="processing-title">Renderizando Vídeo</div>
     <div class="progress-pct" id="procPct">0%</div>
     <div class="progress-wrap"><div class="progress-bar-fill" id="procBar"></div></div>
-    <div class="processing-msg" id="procMsg">Iniciando FFmpeg...</div>
+    <div class="processing-msg" id="procMsg">Preparando gravação...</div>
     <div class="processing-warning">Não feche esta página.<br>O tempo varia conforme o tamanho do vídeo.</div>
   </div>
 
@@ -323,6 +367,7 @@
       <a href="#" onclick="ir('hub.html')" class="back-link">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </a>
+      <img src="img/logobds.png" alt="BDS" class="header-logo" onclick="ir('hub.html')" title="Voltar ao Hub">
       <div class="header-title">Criador de <span>Vídeo</span></div>
     </div>
     <div class="header-right" style="display:flex;align-items:center;gap:8px;">
@@ -330,6 +375,9 @@
       <div class="header-badge">v2.0</div>
     </div>
   </header>
+
+  <!-- ── STEP 1: EDIÇÃO ── -->
+  <div id="s1" class="step active">
 
   <!-- ── Canvas + Controles ── -->
   <div class="canvas-section">
@@ -356,15 +404,13 @@
     <input type="file" id="videoInput" accept="video/mp4,video/*" style="display:none">
   </div>
 
-  <!-- ── STEP 1: EDIÇÃO ── -->
-  <div id="s1" class="step active">
-
   <!-- ── Tabs ── -->
   <div class="tabs-nav">
     <button class="tab-btn active" id="btnVideo" onclick="openTab('tVideo',this)">Vídeo</button>
     <button class="tab-btn" id="btnLayout" onclick="openTab('tLayout',this)">Layout</button>
     <button class="tab-btn" id="btnTexto" onclick="openTab('tTexto',this)">Texto</button>
     <button class="tab-btn" id="btnCorte" onclick="openTab('tCorte',this)">Corte</button>
+    <button class="tab-btn" id="btnNoticias" onclick="openTab('tNoticias',this)">Notícias</button>
   </div>
 
   <div class="scroll">
@@ -471,6 +517,19 @@
       </div>
     </div>
 
+    <!-- TAB: NOTÍCIAS -->
+    <div id="tNoticias" class="tab-pane">
+      <div class="bloco">
+        <div class="bloco-head">
+          <span class="bloco-titulo">Notícias Recentes</span>
+          <button class="link-btn" onclick="carregarNoticias()">Atualizar</button>
+        </div>
+        <div class="bloco-body" id="noticiasLista">
+          <div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Abra esta aba para carregar.</div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <div class="footer">
@@ -483,7 +542,18 @@
 
   <!-- ── STEP 2: REVISÃO ── -->
   <div id="s2" class="step">
-    <div class="scroll">
+    <div class="preview-scroll">
+
+      <!-- Vídeo final renderizado -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+          <span class="bloco-titulo">Vídeo Final</span>
+          <span id="videoFileTag" style="font-family:'Inter',sans-serif;font-size:10px;color:var(--muted);font-weight:600;">–</span>
+        </div>
+        <video id="previewVideo" controls playsinline></video>
+      </div>
+
+      <!-- Legenda livre do Instagram -->
       <div class="bloco">
         <div class="bloco-head">
           <span class="bloco-titulo">Legenda do Post</span>
@@ -493,22 +563,14 @@
           <textarea class="legenda" id="legendaInput" placeholder="Escreva a legenda completa aqui 🔥&#10;&#10;Emojis, hashtags, quebras de linha — tudo liberado. Sem limite de caracteres."></textarea>
         </div>
       </div>
-      <div class="bloco">
-        <div class="bloco-head"><span class="bloco-titulo">Exportar</span></div>
-        <div class="bloco-body">
-          <div style="font-size:12px;color:var(--muted);font-weight:500;line-height:1.5;">
-            O vídeo será gravado em tempo real com o overlay e texto aplicados, e baixado em formato <strong style="color:var(--accent);">.webm</strong>.
-          </div>
-        </div>
-      </div>
+
     </div>
     <div class="footer" style="gap:10px;">
       <button class="btn btn-outline" style="flex:0 0 auto;padding:14px;" onclick="voltarEditor()" title="Voltar para edição">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       </button>
-      <button class="btn btn-accent" id="btnProcessar" onclick="processarVideo()">
-        Gravar e Baixar
-      </button>
+      <button class="btn btn-accent" id="btnSalvarVideo" onclick="somenteSalvarVideo()">Salvar Vídeo</button>
+      <button class="btn btn-blue" id="btnTrelloVideo" onclick="salvarVideoETrello()">Salvar + Trello</button>
     </div>
   </div><!-- /#s2 -->
 
@@ -542,7 +604,7 @@
   let dragSX = 0, dragSY = 0, dragOX = 0, dragOY = 0;
 
   // Layout selecionado
-  let layoutAtual = null;
+  let layoutAtual = 'reels_semtag';
 
   // Trim
   let trimStart = 0, trimEnd = 0, videoDuration = 0;
@@ -550,11 +612,31 @@
   // Animação
   let rafId = null;
 
+  // ── Trello ──
+  const TRELLO_KEY     = 'af31fbdd5645cb79b866a7329a2c26d1';
+  const TRELLO_TOKEN   = 'ATTA19cac2fddf8770fe1f5ab10fd380f864993790c3a8fa5f85fd82a5f40052e36b08ADD7AC';
+  const TRELLO_LIST_ID = '68e80f4686f239d2aeca1f32';
+  const TRELLO_MEMBROS = [
+    '65a67a55526b51ed32720aa1','678e7838e09f883754186aac','67b37c2566aeea75532fd6a7',
+    '68237d794f894f3376f18a4d','688a390bbb9c27344135f8ce','67d1da89cb1b4d81df684622',
+    '69ef696ed4eb7735eac76c52','63610ab1ad4010038cd536a4','6516aa5a10ba65ffed1bae5d',
+    '6967ca46aaca3a3f76a642f8'
+  ];
+
+  let videoBlobFinal = null;   // blob do vídeo já renderizado, pronto pra exportar
+  let noticiasCarregadas = false;
+
   const LAYOUTS = {
-    semtag:   { file:'img/LAYOUTS/1 SEM TAG.png',          nome:'Sem Tag' },
-    tagmaior: { file:'img/LAYOUTS/2 TAG MAIOR.png',        nome:'Tag Maior' },
-    tagmenor: { file:'img/LAYOUTS/3 TAG MENOR.png',        nome:'Tag Menor' },
-    meio:     { file:'img/LAYOUTS/4 DIVIDIDO NO MEIO.png', nome:'Dividido' }
+    // ── REELS (9:16) ──
+    reels_semtag:  { file:'img/LAYOUTS REELS/REELS SEM TAG.png',         nome:'Sem Tag',  grupo:'Reels' },
+    reels_maior:   { file:'img/LAYOUTS REELS/REELS TAG MAIOR.png',       nome:'Tag Maior',grupo:'Reels' },
+    reels_menor:   { file:'img/LAYOUTS REELS/REELS TAG MENOR.png',       nome:'Tag Menor',grupo:'Reels' },
+    reels_meio:    { file:'img/LAYOUTS REELS/REELS DIVIDIDO NO MEIO.png',nome:'Dividido', grupo:'Reels' },
+    // ── FEED (4:5) ──
+    feed_semtag:   { file:'img/LAYOUTS FEED/FEED SEM TAG.png',           nome:'Sem Tag',  grupo:'Feed' },
+    feed_maior:    { file:'img/LAYOUTS FEED/FEED TAG MAIOR.png',         nome:'Tag Maior',grupo:'Feed' },
+    feed_menor:    { file:'img/LAYOUTS FEED/FEED TAG MENOR.png',         nome:'Tag Menor',grupo:'Feed' },
+    feed_meio:     { file:'img/LAYOUTS FEED/FEED DIVIDIDO NO MEIO.png',  nome:'Dividido', grupo:'Feed' },
   };
 
   const videoEl  = document.getElementById('videoSrc');
@@ -565,21 +647,42 @@
   canvas.width  = CW;
   canvas.height = CH;
 
-  /* ─── Steps: Edição <-> Revisão ─── */
-  function irParaRevisao() {
+  /* ─── Steps: Edição <-> Revisão ───
+     Ao prosseguir, o vídeo já é renderizado (gravado) e fica pronto
+     pra revisão — igual o fluxo do Criador de Notícia. ─── */
+  async function irParaRevisao() {
     if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return; }
-    // Garante que nenhuma seleção/guia fique visível na prévia
-    textSelecionado = false; snapX = false; snapY = false;
-    renderFrame();
+
+    const blob = await gravarVideo();
+    if (!blob) return; // erro já mostrado dentro de gravarVideo
+
+    videoBlobFinal = blob;
+    const url = URL.createObjectURL(blob);
+    const prevVid = document.getElementById('previewVideo');
+    prevVid.src = url;
+
+    document.getElementById('videoFileTag').textContent = 'sortetv_video_' + Date.now() + '.webm';
+
     document.getElementById('headerStep').textContent = 'Revisão';
     document.getElementById('s1').classList.remove('active');
     document.getElementById('s2').classList.add('active');
   }
 
   function voltarEditor() {
+    const prevVid = document.getElementById('previewVideo');
+    if (prevVid.src) {
+      prevVid.pause();
+      URL.revokeObjectURL(prevVid.src);
+      prevVid.removeAttribute('src');
+      prevVid.load();
+    }
+    videoBlobFinal = null;
+
     document.getElementById('s2').classList.remove('active');
     document.getElementById('s1').classList.add('active');
     document.getElementById('headerStep').textContent = 'Edição';
+
+    startRenderLoop(); // retoma o preview ao vivo do editor
   }
 
   /* ─── Navegação ─── */
@@ -605,6 +708,61 @@
     el.classList.add('active');
     abaAtiva = id;
     if (id !== 'tTexto' && textSelecionado) { textSelecionado = false; renderFrame(); }
+    if (id === 'tNoticias' && !noticiasCarregadas) carregarNoticias();
+  }
+
+  /* ─── Notícias recentes (lista cards do Trello) ─── */
+  async function carregarNoticias() {
+    const lista = document.getElementById('noticiasLista');
+    lista.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Carregando...</div>';
+    try {
+      const url = `https://api.trello.com/1/lists/${TRELLO_LIST_ID}/cards?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}&fields=name,shortUrl,due,dateLastActivity&attachments=true&attachment_fields=url,name,mimeType,previews&limit=30`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('Falha ao carregar');
+      let cards = await resp.json();
+
+      cards.sort((a, b) => new Date(b.dateLastActivity) - new Date(a.dateLastActivity));
+      cards = cards.slice(0, 20);
+
+      if (!cards.length) {
+        lista.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Nenhuma notícia encontrada.</div>';
+        noticiasCarregadas = true;
+        return;
+      }
+
+      lista.innerHTML = '';
+      cards.forEach(card => {
+        const item = document.createElement('a');
+        item.href = card.shortUrl; item.target = '_blank'; item.rel = 'noopener';
+        item.className = 'noticia-item';
+
+        const att = card.attachments && card.attachments[0];
+        let thumbHtml;
+        if (att && att.mimeType && att.mimeType.startsWith('image/')) {
+          const src = (att.previews && att.previews.length) ? att.previews[Math.min(1, att.previews.length - 1)].url : att.url;
+          thumbHtml = `<img src="${src}" class="noticia-thumb" alt="">`;
+        } else if (att && att.mimeType && att.mimeType.startsWith('video/')) {
+          thumbHtml = `<div class="noticia-thumb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>`;
+        } else {
+          thumbHtml = `<div class="noticia-thumb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>`;
+        }
+
+        const dataFmt = card.due ? new Date(card.due).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
+
+        item.innerHTML = `
+          ${thumbHtml}
+          <div class="noticia-info">
+            <div class="noticia-titulo">${card.name}</div>
+            <div class="noticia-data">${dataFmt}</div>
+          </div>
+          <svg class="noticia-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg>
+        `;
+        lista.appendChild(item);
+      });
+      noticiasCarregadas = true;
+    } catch(e) {
+      lista.innerHTML = '<div style="font-size:12px;color:var(--error);text-align:center;padding:20px 0;">Erro ao carregar notícias.</div>';
+    }
   }
 
   function syncVal(id, vid) { document.getElementById(vid).textContent = document.getElementById(id).value; }
@@ -810,17 +968,37 @@
   function gerarTemplates() {
     const grid = document.getElementById('tplGrid');
     grid.innerHTML = '';
+
+    // Agrupa por tipo (Reels / Feed)
+    const grupos = {};
     Object.entries(LAYOUTS).forEach(([key, conf]) => {
-      const btn = document.createElement('button');
-      btn.className = 'tpl-btn' + (key === layoutAtual ? ' ativo' : '');
-      btn.dataset.layout = key;
-      btn.onclick = () => selecionarLayout(key);
-      const thumb = document.createElement('div'); thumb.className = 'tpl-thumb';
-      const img = document.createElement('img'); img.src = conf.file; img.alt = conf.nome;
-      img.onerror = () => { img.style.display='none'; const ph=document.createElement('div'); ph.className='tpl-ph'; ph.textContent=conf.nome; thumb.appendChild(ph); };
-      thumb.appendChild(img);
-      const nome = document.createElement('div'); nome.className = 'tpl-nome'; nome.textContent = conf.nome;
-      btn.appendChild(thumb); btn.appendChild(nome); grid.appendChild(btn);
+      if (!grupos[conf.grupo]) grupos[conf.grupo] = [];
+      grupos[conf.grupo].push([key, conf]);
+    });
+
+    Object.entries(grupos).forEach(([grupo, items]) => {
+      // Label do grupo
+      const label = document.createElement('div');
+      label.style.cssText = 'grid-column:1/-1;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:4px 0 2px;';
+      label.textContent = grupo;
+      grid.appendChild(label);
+
+      items.forEach(([key, conf]) => {
+        const btn = document.createElement('button');
+        btn.className = 'tpl-btn' + (key === layoutAtual ? ' ativo' : '');
+        btn.dataset.layout = key;
+        btn.onclick = () => selecionarLayout(key);
+        const thumb = document.createElement('div'); thumb.className = 'tpl-thumb';
+        const img = document.createElement('img'); img.src = conf.file; img.alt = conf.nome;
+        img.onerror = () => {
+          img.style.display='none';
+          const ph=document.createElement('div'); ph.className='tpl-ph'; ph.textContent=conf.nome;
+          thumb.appendChild(ph);
+        };
+        thumb.appendChild(img);
+        const nome = document.createElement('div'); nome.className = 'tpl-nome'; nome.textContent = conf.nome;
+        btn.appendChild(thumb); btn.appendChild(nome); grid.appendChild(btn);
+      });
     });
   }
 
@@ -979,11 +1157,11 @@
   }
 
   /* ─── Exportação via MediaRecorder (sem FFmpeg, funciona em qualquer host) ─── */
-  let ffmpegInst = null; // mantido pra compatibilidade futura
-
-  async function processarVideo() {
-    if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return; }
-    if (!window.MediaRecorder) { showToast('MediaRecorder não suportado neste browser.', 'erro'); return; }
+  /* ─── Gravação: renderiza vídeo + overlay + texto em tempo real
+     e retorna o blob .webm pronto (não baixa automaticamente) ─── */
+  async function gravarVideo() {
+    if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return null; }
+    if (!window.MediaRecorder) { showToast('MediaRecorder não suportado neste browser.', 'erro'); return null; }
 
     // Garante canvas limpo, sem caixa de seleção ou linhas-guia, antes de gravar
     textSelecionado = false;
@@ -993,6 +1171,8 @@
 
     const overlay = document.getElementById('processingOverlay');
     overlay.classList.add('active');
+    document.getElementById('procPct').textContent = '0%';
+    document.getElementById('procBar').style.width = '0%';
 
     try {
       // Stream do canvas (renderiza vídeo + overlay + texto)
@@ -1097,32 +1277,113 @@
         }
       });
 
-      // Religa o preview normal
-      startRenderLoop();
-
       recorder.stop();
       setMsg('Finalizando arquivo...');
 
       const blob = await new Promise(r => { recorder.onstop = () => r(new Blob(chunks, { type: mimeType })); });
-      const nome = 'sortetv_video_' + Date.now() + '.webm';
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href = url; a.download = nome;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
 
       overlay.classList.remove('active');
-      showToast('Vídeo salvo! ✓', 'ok');
+      return blob;
 
     } catch(err) {
       overlay.classList.remove('active');
       showToast('Erro: ' + err.message, 'erro');
       console.error(err);
+      return null;
     }
   }
 
-    function setMsg(msg) { document.getElementById('procMsg').textContent = msg; }
+  /* ─── Salvar apenas o vídeo (download local) ─── */
+  function somenteSalvarVideo() {
+    if (!videoBlobFinal) { showToast('Nenhum vídeo gerado', 'erro'); return; }
+    const nome = document.getElementById('videoFileTag').textContent || ('sortetv_video_' + Date.now() + '.webm');
+    const url  = URL.createObjectURL(videoBlobFinal);
+    const a    = document.createElement('a');
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    showToast('Vídeo salvo!', 'ok');
+  }
+
+  /* ─── Salvar vídeo + enviar para o Trello (com legenda) ─── */
+  async function salvarVideoETrello() {
+    if (!videoBlobFinal) { showToast('Nenhum vídeo gerado', 'erro'); return; }
+
+    const manchete = document.getElementById('textInput').value.toUpperCase().trim();
+    const legenda  = document.getElementById('legendaInput').value.trim();
+    if (!manchete) { showToast('Adicione um texto na manchete', 'erro'); return; }
+
+    const btn = document.getElementById('btnTrelloVideo');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+
+    try {
+      // Data e hora arredondada pra frente
+      const now  = new Date();
+      const h    = now.getMinutes() > 0 ? now.getHours() + 1 : now.getHours();
+      const hora = String(h % 24).padStart(2, '0') + 'H00';
+      const dia  = String(now.getDate()).padStart(2, '0');
+      const mes  = String(now.getMonth() + 1).padStart(2, '0');
+      const dataStr = `${dia}/${mes}`;
+
+      const nomeCard = `SORTE TV | NOTÍCIA - ${manchete} [${dataStr} - ${hora}]`;
+      const usuario  = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
+      const descricao = `**REDATOR:** ${usuario}\n**MANCHETE:** ${manchete}\n\n**LEGENDA:**\n${legenda || 'Sem legenda.'}`;
+
+      const nome = document.getElementById('videoFileTag').textContent || ('sortetv_video_' + Date.now() + '.webm');
+
+      // Download local
+      const blobUrl = URL.createObjectURL(videoBlobFinal);
+      const linkDown = document.createElement('a');
+      linkDown.href = blobUrl; linkDown.download = nome;
+      document.body.appendChild(linkDown); linkDown.click();
+      document.body.removeChild(linkDown);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+      // Cria card no Trello
+      showToast('Criando card no Trello...', '');
+      const due = new Date(); due.setHours(20, 0, 0, 0);
+      const respCard = await fetch(`https://api.trello.com/1/cards?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idList: TRELLO_LIST_ID,
+          name: nomeCard,
+          desc: descricao,
+          due: due.toISOString(),
+          idMembers: TRELLO_MEMBROS,
+          cover: { color: 'pink', size: 'full', brightness: 'light' }
+        })
+      });
+      if (!respCard.ok) throw new Error('Trello recusou o acesso.');
+      const card = await respCard.json();
+
+      // Anexa o vídeo ao card
+      showToast('Anexando vídeo...', '');
+      const fd = new FormData();
+      fd.append('key', TRELLO_KEY);
+      fd.append('token', TRELLO_TOKEN);
+      fd.append('name', nome);
+      fd.append('file', videoBlobFinal, nome);
+      const respAnexo = await fetch(`https://api.trello.com/1/cards/${card.id}/attachments`, { method: 'POST', body: fd });
+      if (!respAnexo.ok) console.warn('Anexo falhou:', await respAnexo.text());
+
+      // Garante capa rosa
+      await fetch(`https://api.trello.com/1/cards/${card.id}?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cover: { color: 'pink', size: 'full', brightness: 'light' } })
+      });
+
+      showToast('Vídeo enviado ao Trello! ✓', 'ok');
+    } catch(err) {
+      showToast('Erro: ' + err.message, 'erro');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Salvar + Trello';
+    }
+  }
+
+  function setMsg(msg) { document.getElementById('procMsg').textContent = msg; }
 
   /* ─── Init ─── */
   document.fonts.load("1em 'Bebas Neue'").then(() => {
