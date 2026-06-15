@@ -2,6 +2,10 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="img/logobds.png">
+  <link rel="apple-touch-icon" href="img/logobds.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ffb700">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>VÍDEO BDS</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -661,7 +665,7 @@
     const prevVid = document.getElementById('previewVideo');
     prevVid.src = url;
 
-    document.getElementById('videoFileTag').textContent = 'sortetv_video_' + Date.now() + '.webm';
+    document.getElementById('videoFileTag').textContent = 'sortetv_video_' + Date.now() + '.mp4';
 
     document.getElementById('headerStep').textContent = 'Revisão';
     document.getElementById('s1').classList.remove('active');
@@ -1157,15 +1161,16 @@
   }
 
   /* ─── Exportação via MediaRecorder (sem FFmpeg, funciona em qualquer host) ─── */
-  /* ─── Gravação: renderiza vídeo + overlay + texto em tempo real
-     e retorna o blob .webm pronto (não baixa automaticamente) ─── */
+  /* ─── Gravação: WebCodecs + mp4-muxer
+     Processa frame a frame, saída H.264 MP4 real, sem trava ─── */
   async function gravarVideo() {
     if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return null; }
-    if (!window.MediaRecorder) { showToast('MediaRecorder não suportado neste browser.', 'erro'); return null; }
+    if (typeof VideoEncoder === 'undefined') {
+      showToast('WebCodecs não suportado. Use Chrome ou Edge atualizado.', 'erro');
+      return null;
+    }
 
-    // Garante canvas limpo, sem caixa de seleção ou linhas-guia, antes de gravar
-    textSelecionado = false;
-    snapX = false; snapY = false;
+    textSelecionado = false; snapX = false; snapY = false;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     renderFrame();
 
@@ -1175,36 +1180,19 @@
     document.getElementById('procBar').style.width = '0%';
 
     try {
-      // Stream do canvas (renderiza vídeo + overlay + texto)
-      const canvasStream = canvas.captureStream(0);
+      // ── 1. Carrega mp4-muxer ──
+      setMsg('Carregando muxer...');
+      const { Muxer, ArrayBufferTarget } = await import(
+        'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js'
+      );
 
-      // Adiciona áudio do vídeo se disponível
-      if (videoEl.captureStream) {
-        videoEl.captureStream().getAudioTracks().forEach(t => canvasStream.addTrack(t));
-      }
+      const vW = CW, vH = CH; // saída 1080×1920 (igual ao preview)
 
-      // Melhor mimeType disponível
-      const mimeType = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
-        .find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
-
-      const chunks = [];
-      const recorder = new MediaRecorder(canvasStream, { mimeType, videoBitsPerSecond: 8_000_000 });
-      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-
-      // Vai pro ponto de início
-      videoEl.currentTime = trimStart;
-      await new Promise(r => videoEl.addEventListener('seeked', r, { once: true }));
-
-      const duracao = Math.round(trimEnd - trimStart);
-      setMsg(`Gravando ${duracao}s de vídeo em tempo real...`);
-      document.getElementById('procPct').textContent = '0%';
-
-      // Pré-renderiza overlay + texto em canvas estático (não muda durante a gravação)
-      const staticCanvas = document.createElement('canvas');
-      staticCanvas.width  = CW;
-      staticCanvas.height = CH;
-      const sCtx = staticCanvas.getContext('2d');
-      if (overlayImg) sCtx.drawImage(overlayImg, 0, 0, CW, CH);
+      // ── 2. Pré-renderiza overlay + texto em OffscreenCanvas estático ──
+      setMsg('Preparando overlay...');
+      const staticOC = new OffscreenCanvas(vW, vH);
+      const sCtx = staticOC.getContext('2d');
+      if (overlayImg) sCtx.drawImage(overlayImg, 0, 0, vW, vH);
       const texto = document.getElementById('textInput').value.toUpperCase();
       if (texto.trim()) {
         const fs = parseInt(document.getElementById('fontSize').value);
@@ -1215,88 +1203,182 @@
         sCtx.fillStyle = '#ffffff';
         wrapText(sCtx, texto, textX, textY, mw, lh, alinhamento);
       }
+      const overlayBitmap = await createImageBitmap(staticOC);
 
-      // Track de vídeo pra controle manual de frames
-      const videoTrack = canvasStream.getVideoTracks()[0];
+      // ── 3. Decodifica áudio do arquivo original ──
+      setMsg('Decodificando áudio...');
+      let audioBuffer = null;
+      try {
+        const audioCtx = new AudioContext();
+        audioBuffer = await audioCtx.decodeAudioData(await videoFile.arrayBuffer());
+      } catch(e) { console.warn('Sem áudio ou falha ao decodificar:', e); }
 
-      recorder.start(100);
-      videoEl.muted = false;
-      await videoEl.play();
-
-      // Função de render otimizada: só desenha vídeo + overlay pré-renderizado
-      const renderRec = () => {
-        ctx.clearRect(0, 0, CW, CH);
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, CW, CH);
-        // Frame do vídeo
-        const zoom = parseInt(document.getElementById('zoomVid').value) / 100;
-        ctx.drawImage(videoEl,
-          vidOffX, vidOffY,
-          videoEl.videoWidth  * vidScale * zoom,
-          videoEl.videoHeight * vidScale * zoom
-        );
-        // Overlay + texto pré-renderizado (uma única drawImage)
-        ctx.drawImage(staticCanvas, 0, 0);
-        // Notifica o MediaRecorder que tem frame novo
-        if (videoTrack) videoTrack.requestFrame();
+      // ── 4. Configura muxer ──
+      const muxerCfg = {
+        target: new ArrayBufferTarget(),
+        video: { codec: 'avc', width: vW, height: vH },
+        fastStart: 'in-memory',
       };
-
-      await new Promise(resolve => {
-        const updateProg = () => {
-          const prog = Math.min(1, (videoEl.currentTime - trimStart) / (trimEnd - trimStart));
-          document.getElementById('procPct').textContent = Math.round(prog * 100) + '%';
-          document.getElementById('procBar').style.width  = Math.round(prog * 100) + '%';
+      if (audioBuffer) {
+        muxerCfg.audio = {
+          codec: 'aac',
+          sampleRate: audioBuffer.sampleRate,
+          numberOfChannels: audioBuffer.numberOfChannels,
         };
+      }
+      const muxer = new Muxer(muxerCfg);
 
-        if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
-          // Melhor método: renderiza exatamente quando o vídeo tem frame novo
-          const onFrame = (now, meta) => {
-            renderRec();
-            updateProg();
-            if (videoEl.currentTime >= trimEnd - 0.05 || videoEl.paused) {
-              videoEl.pause(); videoEl.muted = true; resolve();
+      // ── 5. VideoEncoder ──
+      const videoEncoder = new VideoEncoder({
+        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+        error: (e) => console.error('VideoEncoder:', e),
+      });
+      videoEncoder.configure({
+        codec: 'avc1.42001f',
+        width: vW, height: vH,
+        bitrate: 8_000_000,
+        framerate: 30,
+        latencyMode: 'quality',
+      });
+
+      // ── 6. AudioEncoder (se houver áudio) ──
+      let audioEncoder = null;
+      if (audioBuffer) {
+        audioEncoder = new AudioEncoder({
+          output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+          error: (e) => console.warn('AudioEncoder:', e),
+        });
+        audioEncoder.configure({
+          codec: 'mp4a.40.2',
+          sampleRate: audioBuffer.sampleRate,
+          numberOfChannels: audioBuffer.numberOfChannels,
+          bitrate: 128_000,
+        });
+      }
+
+      // ── 7. Seek pro início do trecho ──
+      videoEl.currentTime = trimStart;
+      await new Promise(r => videoEl.addEventListener('seeked', r, { once: true }));
+
+      const zoom = parseInt(document.getElementById('zoomVid').value) / 100;
+      const trimOffsetUs = Math.round(trimStart * 1_000_000);
+      let frameIdx = 0;
+
+      setMsg('Codificando vídeo... (aguarde)');
+
+      // ── 8. Loop frame a frame via requestVideoFrameCallback ──
+      await new Promise((resolve, reject) => {
+        const onFrame = async (now, meta) => {
+          try {
+            // Renderiza frame atual do vídeo + overlay estático
+            const frameOC = new OffscreenCanvas(vW, vH);
+            const fCtx = frameOC.getContext('2d');
+
+            fCtx.fillStyle = '#000';
+            fCtx.fillRect(0, 0, vW, vH);
+
+            fCtx.drawImage(videoEl,
+              vidOffX, vidOffY,
+              videoEl.videoWidth  * vidScale * zoom,
+              videoEl.videoHeight * vidScale * zoom
+            );
+
+            fCtx.drawImage(overlayBitmap, 0, 0);
+
+            // Converte pra ImageBitmap (mais estável pro VideoFrame)
+            const bitmap = await createImageBitmap(frameOC);
+            const ts = Math.max(0, Math.round(meta.mediaTime * 1_000_000) - trimOffsetUs);
+            const frame = new VideoFrame(bitmap, {
+              timestamp: ts,
+              duration:  Math.round(1_000_000 / 30),
+            });
+            bitmap.close();
+
+            videoEncoder.encode(frame, { keyFrame: frameIdx % 60 === 0 });
+            frame.close();
+            frameIdx++;
+
+            // Progresso (0-90% pra vídeo, 90-100% pro áudio+mux)
+            const pct = Math.min(90, Math.round(((videoEl.currentTime - trimStart) / (trimEnd - trimStart)) * 90));
+            document.getElementById('procPct').textContent = pct + '%';
+            document.getElementById('procBar').style.width = pct + '%';
+
+            if (videoEl.currentTime >= trimEnd - 0.05) {
+              videoEl.pause();
+              resolve();
             } else {
               videoEl.requestVideoFrameCallback(onFrame);
             }
-          };
-          videoEl.requestVideoFrameCallback(onFrame);
-        } else {
-          // Fallback: RAF com renderização manual
-          let recRaf;
-          const recLoop = () => {
-            renderRec();
-            updateProg();
-            if (videoEl.currentTime >= trimEnd - 0.05 || videoEl.paused) {
-              videoEl.pause(); videoEl.muted = true;
-              cancelAnimationFrame(recRaf); resolve();
-            } else {
-              recRaf = requestAnimationFrame(recLoop);
-            }
-          };
-          recRaf = requestAnimationFrame(recLoop);
-        }
+          } catch(e) { reject(e); }
+        };
+
+        videoEl.muted = true;
+        videoEl.play().catch(reject);
+        videoEl.requestVideoFrameCallback(onFrame);
       });
 
-      recorder.stop();
-      setMsg('Finalizando arquivo...');
+      // ── 9. Codifica áudio (fora do loop do vídeo — mais rápido) ──
+      if (audioBuffer && audioEncoder) {
+        setMsg('Codificando áudio...');
+        const sr   = audioBuffer.sampleRate;
+        const nCh  = audioBuffer.numberOfChannels;
+        const s0   = Math.floor(trimStart * sr);
+        const s1   = Math.ceil(trimEnd   * sr);
+        const total = s1 - s0;
+        const chunk = 4096;
+        let done = 0;
 
-      const blob = await new Promise(r => { recorder.onstop = () => r(new Blob(chunks, { type: mimeType })); });
+        while (done < total) {
+          const n = Math.min(chunk, total - done);
+          const data = new Float32Array(n * nCh);
+          for (let ch = 0; ch < nCh; ch++) {
+            data.set(audioBuffer.getChannelData(ch).subarray(s0 + done, s0 + done + n), ch * n);
+          }
+          const ad = new AudioData({
+            format: 'f32-planar',
+            sampleRate: sr,
+            numberOfFrames: n,
+            numberOfChannels: nCh,
+            timestamp: Math.round((done / sr) * 1_000_000),
+            data,
+          });
+          audioEncoder.encode(ad);
+          ad.close();
+          done += n;
+        }
+        await audioEncoder.flush();
+      }
 
+      // ── 10. Finaliza e empacota MP4 ──
+      setMsg('Finalizando MP4...');
+      await videoEncoder.flush();
+      overlayBitmap.close();
+      muxer.finalize();
+
+      document.getElementById('procPct').textContent = '100%';
+      document.getElementById('procBar').style.width = '100%';
+
+      const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
       overlay.classList.remove('active');
+
+      // Reset vídeo pro início do trecho pra prévia
+      videoEl.currentTime = trimStart;
+      videoEl.muted = false;
+
       return blob;
 
     } catch(err) {
-      overlay.classList.remove('active');
+      document.getElementById('processingOverlay').classList.remove('active');
       showToast('Erro: ' + err.message, 'erro');
       console.error(err);
       return null;
     }
   }
 
-  /* ─── Salvar apenas o vídeo (download local) ─── */
+    /* ─── Salvar apenas o vídeo (download local) ─── */
   function somenteSalvarVideo() {
     if (!videoBlobFinal) { showToast('Nenhum vídeo gerado', 'erro'); return; }
-    const nome = document.getElementById('videoFileTag').textContent || ('sortetv_video_' + Date.now() + '.webm');
+    const nome = document.getElementById('videoFileTag').textContent || ('sortetv_video_' + Date.now() + '.mp4');
     const url  = URL.createObjectURL(videoBlobFinal);
     const a    = document.createElement('a');
     a.href = url; a.download = nome;
@@ -1330,7 +1412,7 @@
       const usuario  = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
       const descricao = `**REDATOR:** ${usuario}\n**MANCHETE:** ${manchete}\n\n**LEGENDA:**\n${legenda || 'Sem legenda.'}`;
 
-      const nome = document.getElementById('videoFileTag').textContent || ('sortetv_video_' + Date.now() + '.webm');
+      const nome = document.getElementById('videoFileTag').textContent || ('sortetv_video_' + Date.now() + '.mp4');
 
       // Download local
       const blobUrl = URL.createObjectURL(videoBlobFinal);
