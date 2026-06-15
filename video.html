@@ -1164,6 +1164,7 @@
   /* ─── Gravação: WebCodecs + mp4-muxer
      Processa frame a frame, saída H.264 MP4 real, sem trava ─── */
   async function gravarVideo() {
+    console.log('[gravarVideo] versão 2026-06-15-c — codecs Level 4.0+');
     if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return null; }
     if (typeof VideoEncoder === 'undefined') {
       showToast('WebCodecs não suportado. Use Chrome ou Edge atualizado.', 'erro');
@@ -1276,6 +1277,7 @@
         target: new ArrayBufferTarget(),
         video: { codec: 'avc', width: vW, height: vH },
         fastStart: 'in-memory',
+        firstTimestampBehavior: 'offset', // normaliza timestamps começando do 0
       };
       if (audioBuffer) {
         muxerCfg.audio = {
@@ -1295,14 +1297,22 @@
         'avc1.640032', // H.264 High Profile Level 5.0   ← fallback amplo
         'avc1.4d0032', // H.264 Main Profile Level 5.0
       ];
+      console.log('[VideoEncoder] Resolução alvo:', vW, 'x', vH);
+      console.log('[VideoEncoder] Testando', codecCandidates.length, 'codecs...');
       let videoConfig = null;
       for (const codec of codecCandidates) {
         try {
-          const { supported } = await VideoEncoder.isConfigSupported({
+          const result = await VideoEncoder.isConfigSupported({
             codec, width: vW, height: vH, bitrate: 8_000_000
           });
-          if (supported) { videoConfig = { codec, width: vW, height: vH, bitrate: 8_000_000 }; break; }
-        } catch(e) { /* tenta próximo */ }
+          console.log(`[VideoEncoder] ${codec} →`, result.supported ? '✓ SUPORTADO' : '✗ não suportado');
+          if (result.supported) {
+            videoConfig = { codec, width: vW, height: vH, bitrate: 8_000_000 };
+            break;
+          }
+        } catch(e) {
+          console.warn(`[VideoEncoder] ${codec} → erro:`, e.message);
+        }
       }
       if (!videoConfig) throw new Error('Nenhum codec H.264 suportado neste browser. Use Chrome ou Edge atualizado.');
 
