@@ -712,11 +712,29 @@
     natW: 0, natH: 0
   };
 
+  // Cada layout tem posição inicial X/Y, alinhamento e largura
+  // X=140 mantém margem da borda da tag azul (que começa ~50px)
   const LAYOUTS = {
-    reels_semtag: { file:'img/LAYOUTS REELS/REELS SEM TAG.png',          nome:'Sem Tag'  },
-    reels_maior:  { file:'img/LAYOUTS REELS/REELS TAG MAIOR.png',        nome:'Tag Maior'},
-    reels_menor:  { file:'img/LAYOUTS REELS/REELS TAG MENOR.png',        nome:'Tag Menor'},
-    reels_meio:   { file:'img/LAYOUTS REELS/REELS DIVIDIDO NO MEIO.png', nome:'Dividido' },
+    // Sem tag: texto livre, centralizado em qualquer lugar (default no meio-inferior)
+    reels_semtag: {
+      file:'img/LAYOUTS REELS/REELS SEM TAG.png', nome:'Sem Tag',
+      x: 540, y: 1700, size: 85, height: 80, align:'center', maxWidth: 900
+    },
+    // Tag maior: retângulo na parte inferior do canvas (~y=1480-1620)
+    reels_maior:  {
+      file:'img/LAYOUTS REELS/REELS TAG MAIOR.png', nome:'Tag Maior',
+      x: 140, y: 1540, size: 85, height: 80, align:'left', maxWidth: 820
+    },
+    // Tag menor: retângulo menor mais pra baixo (~y=1620-1700)
+    reels_menor:  {
+      file:'img/LAYOUTS REELS/REELS TAG MENOR.png', nome:'Tag Menor',
+      x: 140, y: 1655, size: 70, height: 66, align:'left', maxWidth: 820
+    },
+    // Dividido: retângulo no meio (~y=940-1100)
+    reels_meio:   {
+      file:'img/LAYOUTS REELS/REELS DIVIDIDO NO MEIO.png', nome:'Dividido',
+      x: 140, y: 1020, size: 80, height: 76, align:'left', maxWidth: 820
+    },
   };
 
   const videoEl  = document.getElementById('videoSrc');
@@ -1042,33 +1060,53 @@
     const zoom = parseInt(document.getElementById('zoomVid').value) / 100;
 
     if (modoComposicao === 'split') {
-      // ── TOP: vídeo principal ──
+      // ── TOP ──
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, CW, CH/2);
+      ctx.clip();
       if (videoLoaded) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, 0, CW, CH/2);
-        ctx.clip();
         ctx.drawImage(videoEl,
           vidOffX, vidOffY,
           videoEl.videoWidth  * vidScale * zoom,
           videoEl.videoHeight * vidScale * zoom
         );
-        ctx.restore();
+      } else {
+        // Placeholder do slot top
+        ctx.fillStyle = '#0e1a30';
+        ctx.fillRect(0, 0, CW, CH/2);
+        ctx.fillStyle = '#3a5078';
+        ctx.font = "bold 56px 'Inter', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Slot 1 - Vídeo', CW/2, CH/4);
       }
-      // ── BOTTOM: segunda mídia ──
+      ctx.restore();
+
+      // ── BOTTOM ──
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, CH/2, CW, CH/2);
+      ctx.clip();
       if (media2.loaded) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, CH/2, CW, CH/2);
-        ctx.clip();
         ctx.drawImage(media2.el,
           media2.offX, CH/2 + media2.offY,
           media2.natW * media2.scale,
           media2.natH * media2.scale
         );
-        ctx.restore();
+      } else {
+        // Placeholder do slot bottom
+        ctx.fillStyle = '#0e1a30';
+        ctx.fillRect(0, CH/2, CW, CH/2);
+        ctx.fillStyle = '#3a5078';
+        ctx.font = "bold 56px 'Inter', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Slot 2 - Vídeo ou Imagem', CW/2, CH*0.75);
       }
-      // Linha divisória sutil no centro
+      ctx.restore();
+
+      // Linha divisória sutil
       ctx.fillStyle = '#000';
       ctx.fillRect(0, CH/2 - 2, CW, 4);
     } else {
@@ -1170,7 +1208,26 @@
   function selecionarLayout(nome) {
     layoutAtual = nome;
     document.querySelectorAll('.tpl-btn').forEach(b => b.classList.toggle('ativo', b.dataset.layout === nome));
-    carregarOverlay(LAYOUTS[nome].file);
+
+    // Aplica posição/tamanho inicial do layout
+    const conf = LAYOUTS[nome];
+    if (conf.size)      setSliderVid('fontSize',  conf.size);
+    if (conf.height)    setSliderVid('lineHeight',conf.height);
+    if (conf.maxWidth)  setSliderVid('maxWidth',  conf.maxWidth);
+    if (conf.x != null) textX = conf.x;
+    if (conf.y != null) textY = conf.y;
+    if (conf.align) {
+      alinhamento = conf.align;
+      document.querySelectorAll('.align-opt').forEach(b => b.classList.toggle('ativo', b.dataset.align === conf.align));
+    }
+
+    carregarOverlay(conf.file);
+  }
+
+  function setSliderVid(id, val) {
+    document.getElementById(id).value = val;
+    const map = { fontSize:'vFontSize', lineHeight:'vLineHeight', maxWidth:'vMaxWidth' };
+    if (map[id]) document.getElementById(map[id]).textContent = val;
   }
 
   function carregarOverlay(file) {
@@ -1220,6 +1277,22 @@
            p.y >= textBbox.y-pad && p.y <= textBbox.y+textBbox.h+pad;
   }
 
+  // Estado de drag de mídia
+  let dragMediaAlvo = null; // 'main' | 'media2' | null
+  let dragMediaSX = 0, dragMediaSY = 0, dragMediaOX = 0, dragMediaOY = 0;
+
+  function detectarAlvoMidia(sx, sy) {
+    if (abaAtiva !== 'tVideo') return null;
+    const p = screenToCanvas(sx, sy);
+    if (modoComposicao === 'split') {
+      // Top = vídeo principal; Bottom = media2
+      if (p.y < CH/2 && videoLoaded) return 'main';
+      if (p.y >= CH/2 && media2.loaded) return 'media2';
+      return null;
+    }
+    return videoLoaded ? 'main' : null;
+  }
+
   cw.addEventListener('mousedown', e => {
     if (abaAtiva === 'tTexto') {
       if (pertoDoBbox(e.clientX, e.clientY)) {
@@ -1228,46 +1301,93 @@
         textDragSX = e.clientX; textDragSY = e.clientY;
         textOX = textX; textOY = textY; e.stopPropagation();
       } else if (textSelecionado) { textSelecionado = false; renderFrame(); }
+      return;
+    }
+
+    // Drag de mídia na aba Vídeo
+    const alvo = detectarAlvoMidia(e.clientX, e.clientY);
+    if (alvo) {
+      dragMediaAlvo = alvo;
+      dragMediaSX = e.clientX; dragMediaSY = e.clientY;
+      if (alvo === 'main') { dragMediaOX = vidOffX; dragMediaOY = vidOffY; }
+      else                 { dragMediaOX = media2.offX; dragMediaOY = media2.offY; }
+      e.preventDefault();
     }
   }, true);
 
   window.addEventListener('mousemove', e => {
-    if (!isDraggingText) return;
-    const p0 = screenToCanvas(textDragSX, textDragSY);
-    const p1 = screenToCanvas(e.clientX, e.clientY);
-    textX = Math.max(0, Math.min(CW, textOX + p1.x - p0.x));
-    textY = Math.max(0, Math.min(CH, textOY + p1.y - p0.y));
-    aplicarSnapTexto();
+    if (isDraggingText) {
+      const p0 = screenToCanvas(textDragSX, textDragSY);
+      const p1 = screenToCanvas(e.clientX, e.clientY);
+      textX = Math.max(0, Math.min(CW, textOX + p1.x - p0.x));
+      textY = Math.max(0, Math.min(CH, textOY + p1.y - p0.y));
+      aplicarSnapTexto();
+      return;
+    }
+    if (dragMediaAlvo) {
+      const p0 = screenToCanvas(dragMediaSX, dragMediaSY);
+      const p1 = screenToCanvas(e.clientX, e.clientY);
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      if (dragMediaAlvo === 'main') {
+        vidOffX = dragMediaOX + dx;
+        vidOffY = dragMediaOY + dy;
+      } else {
+        media2.offX = dragMediaOX + dx;
+        media2.offY = dragMediaOY + dy;
+      }
+      renderFrame();
+    }
   });
 
   window.addEventListener('mouseup', () => {
     if (isDraggingText && (snapX || snapY)) { snapX = false; snapY = false; renderFrame(); }
     isDraggingText = false;
+    dragMediaAlvo = null;
   });
 
   cw.addEventListener('touchstart', e => {
+    const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
     if (abaAtiva === 'tTexto') {
-      if (pertoDoBbox(e.touches[0].clientX, e.touches[0].clientY)) {
+      if (pertoDoBbox(sx, sy)) {
         isDraggingText = true; textSelecionado = true;
         snapX = false; snapY = false;
-        textDragSX = e.touches[0].clientX; textDragSY = e.touches[0].clientY;
+        textDragSX = sx; textDragSY = sy;
         textOX = textX; textOY = textY; e.stopPropagation();
       } else if (textSelecionado) { textSelecionado = false; renderFrame(); }
+      return;
+    }
+    const alvo = detectarAlvoMidia(sx, sy);
+    if (alvo) {
+      dragMediaAlvo = alvo;
+      dragMediaSX = sx; dragMediaSY = sy;
+      if (alvo === 'main') { dragMediaOX = vidOffX; dragMediaOY = vidOffY; }
+      else                 { dragMediaOX = media2.offX; dragMediaOY = media2.offY; }
     }
   }, {passive:true, capture:true});
 
   window.addEventListener('touchmove', e => {
-    if (!isDraggingText) return;
-    const p0 = screenToCanvas(textDragSX, textDragSY);
-    const p1 = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
-    textX = Math.max(0, Math.min(CW, textOX + p1.x - p0.x));
-    textY = Math.max(0, Math.min(CH, textOY + p1.y - p0.y));
-    aplicarSnapTexto();
+    if (isDraggingText) {
+      const p0 = screenToCanvas(textDragSX, textDragSY);
+      const p1 = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
+      textX = Math.max(0, Math.min(CW, textOX + p1.x - p0.x));
+      textY = Math.max(0, Math.min(CH, textOY + p1.y - p0.y));
+      aplicarSnapTexto();
+      return;
+    }
+    if (dragMediaAlvo) {
+      const p0 = screenToCanvas(dragMediaSX, dragMediaSY);
+      const p1 = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      if (dragMediaAlvo === 'main') { vidOffX = dragMediaOX + dx; vidOffY = dragMediaOY + dy; }
+      else                          { media2.offX = dragMediaOX + dx; media2.offY = dragMediaOY + dy; }
+      renderFrame();
+    }
   }, {passive:true});
 
   window.addEventListener('touchend', () => {
     if (isDraggingText && (snapX || snapY)) { snapX = false; snapY = false; renderFrame(); }
     isDraggingText = false;
+    dragMediaAlvo = null;
   });
 
   /* ─── Trim ─── */
