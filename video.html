@@ -233,6 +233,43 @@
     .divider-line { height: 1px; background: var(--border); }
     .drag-info { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); padding: 2px 0; }
 
+    /* ── Split mode ── */
+    .split-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .split-btn {
+      padding: 10px 8px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 7px; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 10px;
+      color: var(--muted); transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .split-btn.ativo { border-color: var(--accent); color: var(--accent); background: rgba(255,183,0,0.07); }
+    .split-btn svg { width: 14px; height: 14px; }
+
+    .split-slot {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 8px;
+    }
+    .split-slot.media-loaded { border-color: var(--accent); }
+    .split-slot-num {
+      width: 26px; height: 26px; border-radius: 6px;
+      background: var(--surface); color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 12px; flex-shrink: 0;
+    }
+    .split-slot.media-loaded .split-slot-num { background: var(--accent); color: var(--bg); }
+    .split-slot-label { flex: 1; font-size: 11px; font-weight: 500; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .split-slot-btn {
+      padding: 6px 10px;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 6px; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-weight: 600; font-size: 10px;
+      color: var(--text); transition: all 0.15s;
+    }
+    .split-slot-btn:hover { border-color: var(--accent); color: var(--accent); }
+
     /* ── Templates ── */
     .tpl-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; padding: 12px; }
     .tpl-btn { background: var(--bg); border: 1.5px solid var(--border); border-radius: 7px; cursor: pointer; overflow: hidden; display: flex; flex-direction: column; transition: border-color 0.15s; }
@@ -421,15 +458,47 @@
 
     <!-- TAB: VÍDEO -->
     <div id="tVideo" class="tab-pane active">
+
+      <!-- Modo de composição -->
       <div class="bloco">
-        <div class="bloco-head">
-          <span class="bloco-titulo">Arquivo de Vídeo</span>
-          <button class="link-btn" onclick="document.getElementById('videoInput').click()">Trocar</button>
-        </div>
+        <div class="bloco-head"><span class="bloco-titulo">Modo de Composição</span></div>
         <div class="bloco-body">
-          <div id="videoInfo" style="font-size:12px;color:var(--muted);font-weight:500;">Nenhum vídeo carregado</div>
-          <div class="ctrl">
-            <div class="ctrl-top"><span class="ctrl-lbl">Zoom</span><span class="ctrl-val" id="vZoomVid">100%</span></div>
+          <div class="split-toggle">
+            <button class="split-btn ativo" id="modoUnico" onclick="setModoComposicao('unico')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/></svg>
+              Único
+            </button>
+            <button class="split-btn" id="modoSplit" onclick="setModoComposicao('split')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
+              Tela Dividida
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slots de mídia (modo único = só vídeo top; split = top + bottom) -->
+      <div class="bloco" id="blocoSlots">
+        <div class="bloco-head"><span class="bloco-titulo" id="slotsTitulo">Vídeo Principal</span></div>
+        <div class="bloco-body">
+
+          <!-- Slot 1 (TOP no split / único no normal) -->
+          <div class="split-slot" id="slotTop">
+            <div class="split-slot-num">1</div>
+            <div class="split-slot-label" id="slotTopLabel">Nenhuma mídia</div>
+            <button class="split-slot-btn" onclick="document.getElementById('videoInput').click()">Trocar</button>
+          </div>
+
+          <!-- Slot 2 (só visível no modo split) -->
+          <div class="split-slot" id="slotBottom" style="margin-top:8px;display:none;">
+            <div class="split-slot-num">2</div>
+            <div class="split-slot-label" id="slotBottomLabel">Nenhuma mídia</div>
+            <button class="split-slot-btn" onclick="document.getElementById('mediaInput2').click()">Adicionar</button>
+          </div>
+
+          <input type="file" id="mediaInput2" accept="video/*,image/*" style="display:none">
+
+          <div class="ctrl" style="margin-top:10px;">
+            <div class="ctrl-top"><span class="ctrl-lbl">Zoom (slot ativo)</span><span class="ctrl-val" id="vZoomVid">100%</span></div>
             <input type="range" id="zoomVid" min="100" max="300" value="100" oninput="document.getElementById('vZoomVid').textContent=this.value+'%'; renderFrame()">
           </div>
         </div>
@@ -525,11 +594,11 @@
     <div id="tNoticias" class="tab-pane">
       <div class="bloco">
         <div class="bloco-head">
-          <span class="bloco-titulo">Notícias Recentes</span>
-          <button class="link-btn" onclick="carregarNoticias()">Atualizar</button>
+          <span class="bloco-titulo">Histórico de Notícias</span>
+          <button class="link-btn" onclick="if(confirm('Limpar todo o histórico?')) { localStorage.removeItem('bdsHistoricoVideo'); renderHistorico(); }">Limpar</button>
         </div>
         <div class="bloco-body" id="noticiasLista">
-          <div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Abra esta aba para carregar.</div>
+          <div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Nenhuma notícia salva ainda.</div>
         </div>
       </div>
     </div>
@@ -627,20 +696,27 @@
     '6967ca46aaca3a3f76a642f8'
   ];
 
-  let videoBlobFinal = null;   // blob do vídeo já renderizado, pronto pra exportar
+  let videoBlobFinal = null;
   let noticiasCarregadas = false;
 
+  // ── Modo de composição ──
+  let modoComposicao = 'unico'; // 'unico' | 'split'
+
+  // Segunda mídia (slot bottom no split)
+  let media2 = {
+    type: null,        // 'video' | 'image' | null
+    file: null,
+    el: null,          // HTMLVideoElement ou HTMLImageElement
+    loaded: false,
+    scale: 1, offX: 0, offY: 0,
+    natW: 0, natH: 0
+  };
+
   const LAYOUTS = {
-    // ── REELS (9:16) ──
-    reels_semtag:  { file:'img/LAYOUTS REELS/REELS SEM TAG.png',         nome:'Sem Tag',  grupo:'Reels' },
-    reels_maior:   { file:'img/LAYOUTS REELS/REELS TAG MAIOR.png',       nome:'Tag Maior',grupo:'Reels' },
-    reels_menor:   { file:'img/LAYOUTS REELS/REELS TAG MENOR.png',       nome:'Tag Menor',grupo:'Reels' },
-    reels_meio:    { file:'img/LAYOUTS REELS/REELS DIVIDIDO NO MEIO.png',nome:'Dividido', grupo:'Reels' },
-    // ── FEED (4:5) ──
-    feed_semtag:   { file:'img/LAYOUTS FEED/FEED SEM TAG.png',           nome:'Sem Tag',  grupo:'Feed' },
-    feed_maior:    { file:'img/LAYOUTS FEED/FEED TAG MAIOR.png',         nome:'Tag Maior',grupo:'Feed' },
-    feed_menor:    { file:'img/LAYOUTS FEED/FEED TAG MENOR.png',         nome:'Tag Menor',grupo:'Feed' },
-    feed_meio:     { file:'img/LAYOUTS FEED/FEED DIVIDIDO NO MEIO.png',  nome:'Dividido', grupo:'Feed' },
+    reels_semtag: { file:'img/LAYOUTS REELS/REELS SEM TAG.png',          nome:'Sem Tag'  },
+    reels_maior:  { file:'img/LAYOUTS REELS/REELS TAG MAIOR.png',        nome:'Tag Maior'},
+    reels_menor:  { file:'img/LAYOUTS REELS/REELS TAG MENOR.png',        nome:'Tag Menor'},
+    reels_meio:   { file:'img/LAYOUTS REELS/REELS DIVIDIDO NO MEIO.png', nome:'Dividido' },
   };
 
   const videoEl  = document.getElementById('videoSrc');
@@ -712,64 +788,142 @@
     el.classList.add('active');
     abaAtiva = id;
     if (id !== 'tTexto' && textSelecionado) { textSelecionado = false; renderFrame(); }
-    if (id === 'tNoticias' && !noticiasCarregadas) carregarNoticias();
+    if (id === 'tNoticias') renderHistorico();
   }
 
-  /* ─── Notícias recentes (lista cards do Trello) ─── */
-  async function carregarNoticias() {
+  /* ─── Histórico local de notícias de vídeo (localStorage) ─── */
+  function getHistoricoVideo() {
+    try { return JSON.parse(localStorage.getItem('bdsHistoricoVideo') || '[]'); }
+    catch(e) { return []; }
+  }
+
+  function salvarNoHistorico(manchete) {
+    const hist = getHistoricoVideo();
+    hist.unshift({
+      manchete: manchete,
+      data: new Date().toISOString(),
+      autor: sessionStorage.getItem('bdsUsuario') || 'Desconhecido'
+    });
+    // Mantém só os últimos 50
+    localStorage.setItem('bdsHistoricoVideo', JSON.stringify(hist.slice(0, 50)));
+  }
+
+  function renderHistorico() {
     const lista = document.getElementById('noticiasLista');
-    lista.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Carregando...</div>';
-    try {
-      const url = `https://api.trello.com/1/lists/${TRELLO_LIST_ID}/cards?key=${TRELLO_KEY}&token=${TRELLO_TOKEN}&fields=name,shortUrl,due,dateLastActivity&attachments=true&attachment_fields=url,name,mimeType,previews&limit=30`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error('Falha ao carregar');
-      let cards = await resp.json();
+    const hist = getHistoricoVideo();
 
-      cards.sort((a, b) => new Date(b.dateLastActivity) - new Date(a.dateLastActivity));
-      cards = cards.slice(0, 20);
-
-      if (!cards.length) {
-        lista.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Nenhuma notícia encontrada.</div>';
-        noticiasCarregadas = true;
-        return;
-      }
-
-      lista.innerHTML = '';
-      cards.forEach(card => {
-        const item = document.createElement('a');
-        item.href = card.shortUrl; item.target = '_blank'; item.rel = 'noopener';
-        item.className = 'noticia-item';
-
-        const att = card.attachments && card.attachments[0];
-        let thumbHtml;
-        if (att && att.mimeType && att.mimeType.startsWith('image/')) {
-          const src = (att.previews && att.previews.length) ? att.previews[Math.min(1, att.previews.length - 1)].url : att.url;
-          thumbHtml = `<img src="${src}" class="noticia-thumb" alt="">`;
-        } else if (att && att.mimeType && att.mimeType.startsWith('video/')) {
-          thumbHtml = `<div class="noticia-thumb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>`;
-        } else {
-          thumbHtml = `<div class="noticia-thumb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>`;
-        }
-
-        const dataFmt = card.due ? new Date(card.due).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '';
-
-        item.innerHTML = `
-          ${thumbHtml}
-          <div class="noticia-info">
-            <div class="noticia-titulo">${card.name}</div>
-            <div class="noticia-data">${dataFmt}</div>
-          </div>
-          <svg class="noticia-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M7 7h10v10"/></svg>
-        `;
-        lista.appendChild(item);
-      });
-      noticiasCarregadas = true;
-    } catch(e) {
-      lista.innerHTML = '<div style="font-size:12px;color:var(--error);text-align:center;padding:20px 0;">Erro ao carregar notícias.</div>';
+    if (!hist.length) {
+      lista.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Nenhuma notícia salva ainda.</div>';
+      return;
     }
+
+    lista.innerHTML = '';
+    hist.forEach((item, idx) => {
+      const div = document.createElement('div');
+      div.className = 'noticia-item';
+      div.style.cursor = 'default';
+      const dt = new Date(item.data);
+      const dataFmt = dt.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) + ' · ' +
+                      dt.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+      div.innerHTML = `
+        <div class="noticia-thumb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
+        <div class="noticia-info">
+          <div class="noticia-titulo">${item.manchete}</div>
+          <div class="noticia-data">${dataFmt} · ${item.autor}</div>
+        </div>
+        <button onclick="removerDoHistorico(${idx})" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;display:flex;align-items:center;" title="Remover">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      `;
+      lista.appendChild(div);
+    });
   }
+
+  function removerDoHistorico(idx) {
+    const hist = getHistoricoVideo();
+    hist.splice(idx, 1);
+    localStorage.setItem('bdsHistoricoVideo', JSON.stringify(hist));
+    renderHistorico();
+  }
+
 
   function syncVal(id, vid) { document.getElementById(vid).textContent = document.getElementById(id).value; }
+
+  /* ─── Modo de composição (único ou split) ─── */
+  function setModoComposicao(modo) {
+    modoComposicao = modo;
+    document.getElementById('modoUnico').classList.toggle('ativo', modo === 'unico');
+    document.getElementById('modoSplit').classList.toggle('ativo', modo === 'split');
+    document.getElementById('slotBottom').style.display = modo === 'split' ? 'flex' : 'none';
+    document.getElementById('slotsTitulo').textContent  = modo === 'split' ? 'Mídias da Tela Dividida' : 'Vídeo Principal';
+
+    // Recalcula a escala do vídeo principal para o novo modo
+    if (videoLoaded) recalcEscalaVideo();
+    if (media2.loaded) recalcEscalaMedia2();
+    renderFrame();
+  }
+
+  // Recalcula offset/scale do vídeo principal conforme o modo
+  function recalcEscalaVideo() {
+    const targetH = modoComposicao === 'split' ? CH / 2 : CH;
+    const vr = videoEl.videoWidth / videoEl.videoHeight;
+    const cr = CW / targetH;
+    if (vr > cr) { vidScale = targetH / videoEl.videoHeight; }
+    else         { vidScale = CW / videoEl.videoWidth; }
+    vidOffX = (CW       - videoEl.videoWidth  * vidScale) / 2;
+    vidOffY = (targetH  - videoEl.videoHeight * vidScale) / 2; // relativo à metade superior
+  }
+
+  function recalcEscalaMedia2() {
+    if (!media2.loaded) return;
+    const targetH = CH / 2;
+    const r = media2.natW / media2.natH;
+    const cr = CW / targetH;
+    if (r > cr) { media2.scale = targetH / media2.natH; }
+    else        { media2.scale = CW / media2.natW; }
+    media2.offX = (CW       - media2.natW * media2.scale) / 2;
+    media2.offY = (targetH  - media2.natH * media2.scale) / 2;
+  }
+
+  /* ─── Upload da SEGUNDA mídia (vídeo ou imagem) ─── */
+  document.getElementById('mediaInput2').addEventListener('change', function() {
+    if (!this.files[0]) return;
+    const file = this.files[0];
+    const isVideo = file.type.startsWith('video/');
+    const isImage = file.type.startsWith('image/');
+    if (!isVideo && !isImage) { showToast('Use vídeo ou imagem', 'erro'); return; }
+
+    // Limpa mídia anterior se houver
+    if (media2.el && media2.type === 'video') { media2.el.pause(); media2.el.src = ''; }
+
+    const url = URL.createObjectURL(file);
+
+    if (isVideo) {
+      const v = document.createElement('video');
+      v.muted = true; v.playsInline = true; v.loop = true;
+      v.src = url;
+      v.addEventListener('loadedmetadata', () => {
+        media2 = { type:'video', file, el:v, loaded:true, scale:1, offX:0, offY:0, natW:v.videoWidth, natH:v.videoHeight };
+        recalcEscalaMedia2();
+        document.getElementById('slotBottom').classList.add('media-loaded');
+        document.getElementById('slotBottomLabel').textContent = file.name;
+        document.querySelector('#slotBottom .split-slot-btn').textContent = 'Trocar';
+        v.play().catch(() => {});
+        renderFrame();
+      }, { once: true });
+    } else {
+      const img = new Image();
+      img.onload = () => {
+        media2 = { type:'image', file, el:img, loaded:true, scale:1, offX:0, offY:0, natW:img.naturalWidth, natH:img.naturalHeight };
+        recalcEscalaMedia2();
+        document.getElementById('slotBottom').classList.add('media-loaded');
+        document.getElementById('slotBottomLabel').textContent = file.name;
+        document.querySelector('#slotBottom .split-slot-btn').textContent = 'Trocar';
+        renderFrame();
+      };
+      img.src = url;
+    }
+  });
 
   /* ─── Upload de Vídeo ─── */
   document.getElementById('videoInput').addEventListener('change', function() {
@@ -785,23 +939,23 @@
     trimStart = 0;
     trimEnd   = videoDuration;
 
-    // Calcula escala para cobrir o canvas (9:16)
-    const vr = videoEl.videoWidth / videoEl.videoHeight;
-    const cr = CW / CH;
-    if (vr > cr) { vidScale = CH / videoEl.videoHeight; }
-    else         { vidScale = CW / videoEl.videoWidth; }
-    vidOffX = (CW - videoEl.videoWidth  * vidScale) / 2;
-    vidOffY = (CH - videoEl.videoHeight * vidScale) / 2;
+    // Calcula escala conforme o modo de composição
+    recalcEscalaVideo();
 
     videoLoaded = true;
     document.getElementById('uploadHint').classList.add('gone');
     document.getElementById('videoControls').style.display = 'flex';
     document.getElementById('btnProsseguir').disabled = false;
 
-    // Info do arquivo
+    // Info do arquivo (label do slot)
     const mb = (videoFile.size / 1024 / 1024).toFixed(1);
-    document.getElementById('videoInfo').textContent =
-      `${videoFile.name} · ${mb} MB · ${videoEl.videoWidth}×${videoEl.videoHeight}`;
+    const info = `${videoFile.name} · ${mb} MB`;
+    const slotLbl = document.getElementById('slotTopLabel');
+    const slotTop = document.getElementById('slotTop');
+    if (slotLbl) slotLbl.textContent = info;
+    if (slotTop) slotTop.classList.add('media-loaded');
+    const btnTrocar = slotTop && slotTop.querySelector('.split-slot-btn');
+    if (btnTrocar) btnTrocar.textContent = 'Trocar';
 
     updateTrimUI();
     startRenderLoop();
@@ -882,23 +1036,50 @@
 
   function renderFrame() {
     ctx.clearRect(0, 0, CW, CH);
-
-    // Fundo preto
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, CW, CH);
 
-    // Frame do vídeo
-    if (videoLoaded) {
-      const zoom = parseInt(document.getElementById('zoomVid').value) / 100;
-      const sw = CW, sh = CH;
-      ctx.drawImage(videoEl,
-        vidOffX * (1/vidScale) * (zoom - 1) * -1,
-        vidOffY * (1/vidScale) * (zoom - 1) * -1,
-        videoEl.videoWidth, videoEl.videoHeight,
-        vidOffX, vidOffY,
-        videoEl.videoWidth * vidScale * zoom,
-        videoEl.videoHeight * vidScale * zoom
-      );
+    const zoom = parseInt(document.getElementById('zoomVid').value) / 100;
+
+    if (modoComposicao === 'split') {
+      // ── TOP: vídeo principal ──
+      if (videoLoaded) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, CW, CH/2);
+        ctx.clip();
+        ctx.drawImage(videoEl,
+          vidOffX, vidOffY,
+          videoEl.videoWidth  * vidScale * zoom,
+          videoEl.videoHeight * vidScale * zoom
+        );
+        ctx.restore();
+      }
+      // ── BOTTOM: segunda mídia ──
+      if (media2.loaded) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, CH/2, CW, CH/2);
+        ctx.clip();
+        ctx.drawImage(media2.el,
+          media2.offX, CH/2 + media2.offY,
+          media2.natW * media2.scale,
+          media2.natH * media2.scale
+        );
+        ctx.restore();
+      }
+      // Linha divisória sutil no centro
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, CH/2 - 2, CW, 4);
+    } else {
+      // ── MODO ÚNICO ──
+      if (videoLoaded) {
+        ctx.drawImage(videoEl,
+          vidOffX, vidOffY,
+          videoEl.videoWidth  * vidScale * zoom,
+          videoEl.videoHeight * vidScale * zoom
+        );
+      }
     }
 
     // Overlay
@@ -972,37 +1153,17 @@
   function gerarTemplates() {
     const grid = document.getElementById('tplGrid');
     grid.innerHTML = '';
-
-    // Agrupa por tipo (Reels / Feed)
-    const grupos = {};
     Object.entries(LAYOUTS).forEach(([key, conf]) => {
-      if (!grupos[conf.grupo]) grupos[conf.grupo] = [];
-      grupos[conf.grupo].push([key, conf]);
-    });
-
-    Object.entries(grupos).forEach(([grupo, items]) => {
-      // Label do grupo
-      const label = document.createElement('div');
-      label.style.cssText = 'grid-column:1/-1;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:4px 0 2px;';
-      label.textContent = grupo;
-      grid.appendChild(label);
-
-      items.forEach(([key, conf]) => {
-        const btn = document.createElement('button');
-        btn.className = 'tpl-btn' + (key === layoutAtual ? ' ativo' : '');
-        btn.dataset.layout = key;
-        btn.onclick = () => selecionarLayout(key);
-        const thumb = document.createElement('div'); thumb.className = 'tpl-thumb';
-        const img = document.createElement('img'); img.src = conf.file; img.alt = conf.nome;
-        img.onerror = () => {
-          img.style.display='none';
-          const ph=document.createElement('div'); ph.className='tpl-ph'; ph.textContent=conf.nome;
-          thumb.appendChild(ph);
-        };
-        thumb.appendChild(img);
-        const nome = document.createElement('div'); nome.className = 'tpl-nome'; nome.textContent = conf.nome;
-        btn.appendChild(thumb); btn.appendChild(nome); grid.appendChild(btn);
-      });
+      const btn = document.createElement('button');
+      btn.className = 'tpl-btn' + (key === layoutAtual ? ' ativo' : '');
+      btn.dataset.layout = key;
+      btn.onclick = () => selecionarLayout(key);
+      const thumb = document.createElement('div'); thumb.className = 'tpl-thumb';
+      const img = document.createElement('img'); img.src = conf.file; img.alt = conf.nome;
+      img.onerror = () => { img.style.display='none'; const ph=document.createElement('div'); ph.className='tpl-ph'; ph.textContent=conf.nome; thumb.appendChild(ph); };
+      thumb.appendChild(img);
+      const nome = document.createElement('div'); nome.className = 'tpl-nome'; nome.textContent = conf.nome;
+      btn.appendChild(thumb); btn.appendChild(nome); grid.appendChild(btn);
     });
   }
 
@@ -1381,11 +1542,43 @@
             // Renderiza: síncrono, sem createImageBitmap
             fCtx.fillStyle = '#000';
             fCtx.fillRect(0, 0, vW, vH);
-            fCtx.drawImage(videoEl,
-              vidOffX, vidOffY,
-              videoEl.videoWidth  * vidScale * zoom,
-              videoEl.videoHeight * vidScale * zoom
-            );
+
+            if (modoComposicao === 'split') {
+              // TOP: vídeo principal
+              fCtx.save();
+              fCtx.beginPath();
+              fCtx.rect(0, 0, vW, vH/2);
+              fCtx.clip();
+              fCtx.drawImage(videoEl,
+                vidOffX, vidOffY,
+                videoEl.videoWidth  * vidScale * zoom,
+                videoEl.videoHeight * vidScale * zoom
+              );
+              fCtx.restore();
+              // BOTTOM: segunda mídia
+              if (media2.loaded) {
+                fCtx.save();
+                fCtx.beginPath();
+                fCtx.rect(0, vH/2, vW, vH/2);
+                fCtx.clip();
+                fCtx.drawImage(media2.el,
+                  media2.offX, vH/2 + media2.offY,
+                  media2.natW * media2.scale,
+                  media2.natH * media2.scale
+                );
+                fCtx.restore();
+              }
+              // Linha divisória
+              fCtx.fillStyle = '#000';
+              fCtx.fillRect(0, vH/2 - 2, vW, 4);
+            } else {
+              // Modo único
+              fCtx.drawImage(videoEl,
+                vidOffX, vidOffY,
+                videoEl.videoWidth  * vidScale * zoom,
+                videoEl.videoHeight * vidScale * zoom
+              );
+            }
             fCtx.drawImage(overlayBitmap, 0, 0);
 
             // VideoFrame direto do OffscreenCanvas (síncrono no Chrome/Edge)
@@ -1488,6 +1681,11 @@
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 3000);
+
+    // Salva no histórico local
+    const manchete = document.getElementById('textInput').value.toUpperCase().trim();
+    if (manchete) salvarNoHistorico(manchete);
+
     showToast('Vídeo salvo!', 'ok');
   }
 
@@ -1559,6 +1757,9 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cover: { color: 'pink', size: 'full', brightness: 'light' } })
       });
+
+      // Salva no histórico local
+      salvarNoHistorico(manchete);
 
       showToast('Vídeo enviado ao Trello! ✓', 'ok');
     } catch(err) {
