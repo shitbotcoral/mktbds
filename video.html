@@ -253,6 +253,7 @@
       border-radius: 8px;
     }
     .split-slot.media-loaded { border-color: var(--accent); }
+    .split-slot.slot-selecionado { box-shadow: 0 0 0 2px var(--accent); }
     .split-slot-num {
       width: 26px; height: 26px; border-radius: 6px;
       background: var(--surface); color: var(--muted);
@@ -482,24 +483,24 @@
         <div class="bloco-body">
 
           <!-- Slot 1 (TOP no split / único no normal) -->
-          <div class="split-slot" id="slotTop">
+          <div class="split-slot" id="slotTop" onclick="selecionarSlotZoom('main')" style="cursor:pointer;">
             <div class="split-slot-num">1</div>
             <div class="split-slot-label" id="slotTopLabel">Nenhuma mídia</div>
-            <button class="split-slot-btn" onclick="document.getElementById('videoInput').click()">Trocar</button>
+            <button class="split-slot-btn" onclick="event.stopPropagation(); document.getElementById('videoInput').click()">Trocar</button>
           </div>
 
           <!-- Slot 2 (só visível no modo split) -->
-          <div class="split-slot" id="slotBottom" style="margin-top:8px;display:none;">
+          <div class="split-slot" id="slotBottom" onclick="selecionarSlotZoom('media2')" style="margin-top:8px;display:none;cursor:pointer;">
             <div class="split-slot-num">2</div>
             <div class="split-slot-label" id="slotBottomLabel">Nenhuma mídia</div>
-            <button class="split-slot-btn" onclick="document.getElementById('mediaInput2').click()">Adicionar</button>
+            <button class="split-slot-btn" onclick="event.stopPropagation(); document.getElementById('mediaInput2').click()">Adicionar</button>
           </div>
 
           <input type="file" id="mediaInput2" accept="video/*,image/*" style="display:none">
 
           <div class="ctrl" style="margin-top:10px;">
-            <div class="ctrl-top"><span class="ctrl-lbl">Zoom (slot ativo)</span><span class="ctrl-val" id="vZoomVid">100%</span></div>
-            <input type="range" id="zoomVid" min="100" max="300" value="100" oninput="document.getElementById('vZoomVid').textContent=this.value+'%'; renderFrame()">
+            <div class="ctrl-top"><span class="ctrl-lbl" id="zoomSlotLabel">Zoom</span><span class="ctrl-val" id="vZoomVid">100%</span></div>
+            <input type="range" id="zoomVid" min="100" max="300" value="100" oninput="document.getElementById('vZoomVid').textContent=this.value+'%'; aplicarZoom(); renderFrame()">
           </div>
         </div>
       </div>
@@ -672,7 +673,7 @@
   let textDragSX = 0, textDragSY = 0, textOX = 0, textOY = 0;
 
   // Imagem de fundo (zoom/pos)
-  let vidScale = 1, vidOffX = 0, vidOffY = 0;
+  let vidScale = 1, vidOffX = 0, vidOffY = 0, vidBaseScale = 1;
   let isDraggingVid = false;
   let dragSX = 0, dragSY = 0, dragOX = 0, dragOY = 0;
 
@@ -704,13 +705,14 @@
 
   // Segunda mídia (slot bottom no split)
   let media2 = {
-    type: null,        // 'video' | 'image' | null
+    type: null,
     file: null,
-    el: null,          // HTMLVideoElement ou HTMLImageElement
+    el: null,
     loaded: false,
     scale: 1, offX: 0, offY: 0,
     natW: 0, natH: 0
   };
+  let media2BaseScale = 1;
 
   // Cada layout tem posição inicial X/Y, alinhamento e largura
   // X=140 mantém margem da borda da tag azul (que começa ~50px)
@@ -888,8 +890,9 @@
     const cr = CW / targetH;
     if (vr > cr) { vidScale = targetH / videoEl.videoHeight; }
     else         { vidScale = CW / videoEl.videoWidth; }
+    vidBaseScale = vidScale; // escala "100%" (cobre a área sem zoom extra)
     vidOffX = (CW       - videoEl.videoWidth  * vidScale) / 2;
-    vidOffY = (targetH  - videoEl.videoHeight * vidScale) / 2; // relativo à metade superior
+    vidOffY = (targetH  - videoEl.videoHeight * vidScale) / 2;
   }
 
   function recalcEscalaMedia2() {
@@ -899,8 +902,73 @@
     const cr = CW / targetH;
     if (r > cr) { media2.scale = targetH / media2.natH; }
     else        { media2.scale = CW / media2.natW; }
+    media2BaseScale = media2.scale; // escala "100%"
     media2.offX = (CW       - media2.natW * media2.scale) / 2;
     media2.offY = (targetH  - media2.natH * media2.scale) / 2;
+  }
+
+  /* ── Trava o offset pra mídia nunca sair da área (sempre preenchida) ──
+     targetH = altura da área que a mídia precisa cobrir (CH inteiro ou CH/2 no split) */
+  function clampOffset(offX, offY, natW, natH, scale, targetH) {
+    const mX = CW      - natW * scale;
+    const mY = targetH - natH * scale;
+    return {
+      x: Math.min(0, Math.max(mX, offX)),
+      y: Math.min(0, Math.max(mY, offY)),
+    };
+  }
+
+  function clampVidOffset() {
+    if (!videoLoaded) return;
+    const targetH = modoComposicao === 'split' ? CH / 2 : CH;
+    const r = clampOffset(vidOffX, vidOffY, videoEl.videoWidth, videoEl.videoHeight, vidScale, targetH);
+    vidOffX = r.x; vidOffY = r.y;
+  }
+
+  function clampMedia2Offset() {
+    if (!media2.loaded) return;
+    const r = clampOffset(media2.offX, media2.offY, media2.natW, media2.natH, media2.scale, CH / 2);
+    media2.offX = r.x; media2.offY = r.y;
+  }
+
+  /* ── Slot que o controle de Zoom está afetando ('main' | 'media2') ── */
+  let slotZoomAtivo = 'main';
+
+  function selecionarSlotZoom(slot) {
+    if (slot === 'media2' && !media2.loaded) return; // nada pra selecionar ainda
+    slotZoomAtivo = slot;
+    document.getElementById('slotTop').classList.toggle('slot-selecionado', slot === 'main');
+    document.getElementById('slotBottom').classList.toggle('slot-selecionado', slot === 'media2');
+
+    // Sincroniza o slider com o zoom atual da mídia selecionada
+    const zoomEl = document.getElementById('zoomVid');
+    const baseZoom = slot === 'main' ? (vidBaseScale ? Math.round((vidScale / vidBaseScale) * 100) : 100)
+                                      : (media2BaseScale ? Math.round((media2.scale / media2BaseScale) * 100) : 100);
+    zoomEl.value = Math.max(100, Math.min(300, baseZoom));
+    document.getElementById('vZoomVid').textContent = zoomEl.value + '%';
+    document.getElementById('zoomSlotLabel').textContent = 'Zoom — ' + (slot === 'main' ? 'Slot 1' : 'Slot 2');
+  }
+
+  /* Aplica o zoom do slider na mídia selecionada, mantendo o centro e travando nas bordas */
+  function aplicarZoom() {
+    const zoomPct = parseInt(document.getElementById('zoomVid').value) / 100;
+
+    if (slotZoomAtivo === 'main' && videoLoaded) {
+      const targetH = modoComposicao === 'split' ? CH / 2 : CH;
+      const cx = vidOffX + (videoEl.videoWidth  * vidScale) / 2;
+      const cy = vidOffY + (videoEl.videoHeight * vidScale) / 2;
+      vidScale = vidBaseScale * zoomPct;
+      vidOffX = cx - (videoEl.videoWidth  * vidScale) / 2;
+      vidOffY = cy - (videoEl.videoHeight * vidScale) / 2;
+      clampVidOffset();
+    } else if (slotZoomAtivo === 'media2' && media2.loaded) {
+      const cx = media2.offX + (media2.natW * media2.scale) / 2;
+      const cy = media2.offY + (media2.natH * media2.scale) / 2;
+      media2.scale = media2BaseScale * zoomPct;
+      media2.offX = cx - (media2.natW * media2.scale) / 2;
+      media2.offY = cy - (media2.natH * media2.scale) / 2;
+      clampMedia2Offset();
+    }
   }
 
   /* ─── Upload da SEGUNDA mídia (vídeo ou imagem) ─── */
@@ -927,6 +995,7 @@
         document.getElementById('slotBottomLabel').textContent = file.name;
         document.querySelector('#slotBottom .split-slot-btn').textContent = 'Trocar';
         v.play().catch(() => {});
+        selecionarSlotZoom('media2');
         renderFrame();
       }, { once: true });
     } else {
@@ -937,6 +1006,7 @@
         document.getElementById('slotBottom').classList.add('media-loaded');
         document.getElementById('slotBottomLabel').textContent = file.name;
         document.querySelector('#slotBottom .split-slot-btn').textContent = 'Trocar';
+        selecionarSlotZoom('media2');
         renderFrame();
       };
       img.src = url;
@@ -975,6 +1045,7 @@
     const btnTrocar = slotTop && slotTop.querySelector('.split-slot-btn');
     if (btnTrocar) btnTrocar.textContent = 'Trocar';
 
+    selecionarSlotZoom('main');
     updateTrimUI();
     startRenderLoop();
   });
@@ -1331,9 +1402,11 @@
       if (dragMediaAlvo === 'main') {
         vidOffX = dragMediaOX + dx;
         vidOffY = dragMediaOY + dy;
+        clampVidOffset();
       } else {
         media2.offX = dragMediaOX + dx;
         media2.offY = dragMediaOY + dy;
+        clampMedia2Offset();
       }
       renderFrame();
     }
@@ -1378,8 +1451,13 @@
       const p0 = screenToCanvas(dragMediaSX, dragMediaSY);
       const p1 = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
       const dx = p1.x - p0.x, dy = p1.y - p0.y;
-      if (dragMediaAlvo === 'main') { vidOffX = dragMediaOX + dx; vidOffY = dragMediaOY + dy; }
-      else                          { media2.offX = dragMediaOX + dx; media2.offY = dragMediaOY + dy; }
+      if (dragMediaAlvo === 'main') {
+        vidOffX = dragMediaOX + dx; vidOffY = dragMediaOY + dy;
+        clampVidOffset();
+      } else {
+        media2.offX = dragMediaOX + dx; media2.offY = dragMediaOY + dy;
+        clampMedia2Offset();
+      }
       renderFrame();
     }
   }, {passive:true});
