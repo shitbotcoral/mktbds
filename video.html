@@ -1662,11 +1662,11 @@
       for (const codec of codecCandidates) {
         try {
           const result = await VideoEncoder.isConfigSupported({
-            codec, width: vW, height: vH, bitrate: 8_000_000
+            codec, width: vW, height: vH, bitrate: 5_000_000, framerate: 30, latencyMode: 'realtime'
           });
           console.log(`[VideoEncoder] ${codec} →`, result.supported ? '✓ SUPORTADO' : '✗ não suportado');
           if (result.supported) {
-            videoConfig = { codec, width: vW, height: vH, bitrate: 8_000_000 };
+            videoConfig = { codec, width: vW, height: vH, bitrate: 5_000_000, framerate: 30, latencyMode: 'realtime' };
             break;
           }
         } catch(e) {
@@ -1736,8 +1736,8 @@
           if (watchdog) clearTimeout(watchdog);
           // Se nenhum frame avançar em 15s, algo travou — aborta com erro claro
           watchdog = setTimeout(() => {
-            reject(new Error('Travou durante a codificação (timeout). Tente um vídeo menor ou recarregue a página.'));
-          }, 15000);
+            reject(new Error('Travou durante a codificação. Tente recarregar a página, usar um vídeo mais curto, ou verificar se outro programa está usando muito processamento.'));
+          }, 25000);
         };
         resetWatchdog();
 
@@ -1749,10 +1749,12 @@
 
             // Backpressure: se a fila do encoder estiver muito cheia, aguarda esvaziar
             // um pouco antes de empurrar mais frames (evita estouro silencioso)
-            if (videoEncoder.encodeQueueSize > 8) {
+            if (videoEncoder.encodeQueueSize > 2) {
               await new Promise(r => {
+                let tries = 0;
                 const check = () => {
-                  if (videoEncoder.encodeQueueSize <= 4 || videoEncoder.state === 'closed') r();
+                  tries++;
+                  if (videoEncoder.encodeQueueSize <= 1 || videoEncoder.state === 'closed' || tries > 300) r();
                   else setTimeout(check, 10);
                 };
                 check();
@@ -1802,7 +1804,9 @@
             fCtx.drawImage(overlayBitmap, 0, 0);
 
             // VideoFrame direto do OffscreenCanvas (síncrono no Chrome/Edge)
-            const ts = Math.max(0, Math.round(meta.mediaTime * 1_000_000) - trimOffsetUs);
+            // Timestamp gerado por contador de frames (estritamente crescente)
+            // em vez de meta.mediaTime, que pode não ser monotônico em todos os browsers
+            const ts = Math.round(frameIdx * (1_000_000 / 30));
             const frame = new VideoFrame(frameOC, {
               timestamp: ts,
               duration:  Math.round(1_000_000 / 30),
