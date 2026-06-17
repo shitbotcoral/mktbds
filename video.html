@@ -1731,10 +1731,32 @@
 
       // ── 8. Loop frame a frame — síncrono, sem await no callback ──
       await new Promise((resolve, reject) => {
-        const onFrame = (now, meta) => { // NÃO é async — callback síncrono = sem frame drop
+        let watchdog = null;
+        const resetWatchdog = () => {
+          if (watchdog) clearTimeout(watchdog);
+          // Se nenhum frame avançar em 15s, algo travou — aborta com erro claro
+          watchdog = setTimeout(() => {
+            reject(new Error('Travou durante a codificação (timeout). Tente um vídeo menor ou recarregue a página.'));
+          }, 15000);
+        };
+        resetWatchdog();
+
+        const onFrame = async (now, meta) => {
           try {
             if (videoEncoder.state === 'closed') {
               throw videoEncoderError || new Error('VideoEncoder fechou durante encoding');
+            }
+
+            // Backpressure: se a fila do encoder estiver muito cheia, aguarda esvaziar
+            // um pouco antes de empurrar mais frames (evita estouro silencioso)
+            if (videoEncoder.encodeQueueSize > 8) {
+              await new Promise(r => {
+                const check = () => {
+                  if (videoEncoder.encodeQueueSize <= 4 || videoEncoder.state === 'closed') r();
+                  else setTimeout(check, 10);
+                };
+                check();
+              });
             }
 
             // Renderiza: síncrono, sem createImageBitmap
@@ -1797,17 +1819,20 @@
             document.getElementById('procPct').textContent = pct + '%';
             document.getElementById('procBar').style.width = pct + '%';
 
+            resetWatchdog();
+
             if (videoEl.currentTime >= trimEnd - 0.05) {
+              clearTimeout(watchdog);
               videoEl.pause();
               resolve();
             } else {
               videoEl.requestVideoFrameCallback(onFrame);
             }
-          } catch(e) { reject(e); }
+          } catch(e) { clearTimeout(watchdog); reject(e); }
         };
 
         videoEl.muted = true;
-        videoEl.play().catch(reject);
+        videoEl.play().catch(e => { clearTimeout(watchdog); reject(e); });
         videoEl.requestVideoFrameCallback(onFrame);
       });
 
