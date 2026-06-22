@@ -687,6 +687,7 @@
 
   // Animação
   let rafId = null;
+  let previewAtivo = true; // false durante a gravação
 
   // ── Trello ──
   const TRELLO_KEY     = 'af31fbdd5645cb79b866a7329a2c26d1';
@@ -1075,7 +1076,8 @@
 
   videoEl.addEventListener('play', () => {
     updatePlayBtn();
-    startRenderLoop(); // religa o loop sincronizado ao vídeo
+    // Só relança o preview loop se NÃO estiver gravando
+    if (previewAtivo) startRenderLoop();
   });
   videoEl.addEventListener('pause', () => {
     updatePlayBtn();
@@ -1117,23 +1119,15 @@
      (evita redesenhar a 60-144Hz quando o vídeo está a 24-30fps) ─── */
   function startRenderLoop() {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    previewAtivo = true;
 
-    if (videoLoaded && 'requestVideoFrameCallback' in HTMLVideoElement.prototype) {
-      const loop = () => {
-        renderFrame();
-        if (!videoEl.paused) {
-          videoEl.requestVideoFrameCallback(loop);
-        }
-      };
-      videoEl.requestVideoFrameCallback(loop); // renderiza ao menos 1x mesmo pausado
-    } else {
-      // Fallback (browsers sem suporte): loop contínuo via RAF
-      function loop() {
-        renderFrame();
-        rafId = requestAnimationFrame(loop);
-      }
-      loop();
+    // RAF puro — sem rVFC, sem conflito com o loop de encoding
+    function loop(ts) {
+      if (!previewAtivo) { rafId = null; return; } // para quando encoding começa
+      renderFrame();
+      rafId = requestAnimationFrame(loop);
     }
+    rafId = requestAnimationFrame(loop);
   }
 
   function renderFrame() {
@@ -1733,6 +1727,10 @@
       videoEl.muted = true;
       videoEl.pause();
 
+      // Para o preview loop antes de começar — evita conflito de rVFC
+      previewAtivo = false;
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
       // Seek robusto: usa promise + timeout de segurança caso 'seeked' não dispare
       await new Promise(resolveSeek => {
         let resolved = false;
@@ -1945,16 +1943,18 @@
       console.log('[gravarVideo] Blob gerado:', (blob.size / 1024 / 1024).toFixed(1), 'MB');
       overlay.classList.remove('active');
 
-      // Reset vídeo pro início do trecho pra prévia
+      // Reativa preview loop
+      previewAtivo = true;
       videoEl.currentTime = trimStart;
       videoEl.muted = false;
 
       return blob;
 
     } catch(err) {
+      previewAtivo = true; // libera preview mesmo em caso de erro
       document.getElementById('processingOverlay').classList.remove('active');
       showToast('Erro: ' + err.message, 'erro');
-      console.error(err);
+      console.error('[gravarVideo] ERRO:', err);
       return null;
     }
   }
