@@ -414,7 +414,7 @@
     </div>
     <div class="header-right" style="display:flex;align-items:center;gap:8px;">
       <span class="header-step" id="headerStep">Edição</span>
-      <div class="header-badge">v2.0.2</div>
+      <div class="header-badge">v2.0.3</div>
     </div>
   </header>
 
@@ -652,7 +652,7 @@
 </div>
 
 <script>
-  console.log('🔥 BDS VIDEO v2.0.2 — seek-based encoding');
+  console.log('🔥 BDS VIDEO v2.0.3 — seek-based + watchdog fix');
 
   /* ═══════════════════════════════════════════
      VARIÁVEIS GLOBAIS
@@ -1733,6 +1733,17 @@
                   '| trimStart:', trimStart, '| trimEnd:', trimEnd);
       setMsg('Capturando frames... (aguarde)');
 
+      // Watchdog: se travar por 60s sem progresso, aborta
+      let loopErro = null;
+      let lastFrameTime = Date.now();
+      const watchdogId = setInterval(() => {
+        if (Date.now() - lastFrameTime > 60000) {
+          clearInterval(watchdogId);
+          loopErro = new Error('Travou durante a captura (>60s sem progresso). Tente um vídeo mais curto.');
+        }
+      }, 2000);
+
+      try {
       for (let i = 0; i < frameCount; i++) {
         // Verifica watchdog
         if (loopErro) throw loopErro;
@@ -1784,6 +1795,9 @@
       }
 
       console.log('[gravarVideo] Todos os frames capturados:', frameCount);
+      } finally {
+        clearInterval(watchdogId); // limpa watchdog independente do resultado
+      }
 
       // ── 9. Codifica áudio
       // ── 9. Codifica áudio (fora do loop do vídeo — mais rápido) ──
