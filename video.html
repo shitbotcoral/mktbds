@@ -752,22 +752,33 @@
   /* ─── Steps: Edição <-> Revisão ───
      Ao prosseguir, o vídeo já é renderizado (gravado) e fica pronto
      pra revisão — igual o fluxo do Criador de Notícia. ─── */
+  let _gravando = false; // mutex — impede dupla execução
+
   async function irParaRevisao() {
+    if (_gravando) { showToast('Já está processando, aguarde...', ''); return; }
     if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return; }
 
-    const blob = await gravarVideo();
-    if (!blob) return; // erro já mostrado dentro de gravarVideo
+    _gravando = true;
+    const btn = document.getElementById('btnProsseguir');
+    if (btn) btn.disabled = true;
 
-    videoBlobFinal = blob;
-    const url = URL.createObjectURL(blob);
-    const prevVid = document.getElementById('previewVideo');
-    prevVid.src = url;
+    try {
+      const blob = await gravarVideo();
+      if (!blob) return;
 
-    document.getElementById('videoFileTag').textContent = 'sortetv_video_' + Date.now() + '.mp4';
+      videoBlobFinal = blob;
+      const url = URL.createObjectURL(blob);
+      const prevVid = document.getElementById('previewVideo');
+      if (prevVid) prevVid.src = url;
 
-    document.getElementById('headerStep').textContent = 'Revisão';
-    document.getElementById('s1').classList.remove('active');
-    document.getElementById('s2').classList.add('active');
+      document.getElementById('videoFileTag').textContent = 'sortetv_video_' + Date.now() + '.mp4';
+      document.getElementById('headerStep').textContent = 'Revisão';
+      document.getElementById('s1').classList.remove('active');
+      document.getElementById('s2').classList.add('active');
+    } finally {
+      _gravando = false;
+      if (btn) btn.disabled = false;
+    }
   }
 
   function voltarEditor() {
@@ -1878,6 +1889,7 @@
       });
 
       // ── 9. Codifica áudio (fora do loop do vídeo — mais rápido) ──
+      console.log('[gravarVideo] Loop de vídeo OK. frameIdx:', frameIdx, '| partindo pro áudio...');
       if (audioBuffer && audioEncoder) {
         setMsg('Codificando áudio...');
         const sr   = audioBuffer.sampleRate;
@@ -1910,15 +1922,27 @@
       }
 
       // ── 10. Finaliza e empacota MP4 ──
+      setMsg('Aguardando encoder finalizar...');
+      console.log('[gravarVideo] Aguardando videoEncoder.flush()...');
+
+      // flush() com timeout de 30s pra não travar silenciosamente
+      await Promise.race([
+        videoEncoder.flush(),
+        new Promise((_, rej) => setTimeout(() =>
+          rej(new Error('videoEncoder.flush() travou (>30s). Tente um vídeo mais curto.')), 30000))
+      ]);
+
+      console.log('[gravarVideo] flush() OK. Finalizando muxer...');
       setMsg('Finalizando MP4...');
-      await videoEncoder.flush();
       overlayBitmap.close();
       muxer.finalize();
 
       document.getElementById('procPct').textContent = '100%';
       document.getElementById('procBar').style.width = '100%';
 
+      console.log('[gravarVideo] muxer.finalize() OK! Gerando blob...');
       const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
+      console.log('[gravarVideo] Blob gerado:', (blob.size / 1024 / 1024).toFixed(1), 'MB');
       overlay.classList.remove('active');
 
       // Reset vídeo pro início do trecho pra prévia
