@@ -414,7 +414,7 @@
     </div>
     <div class="header-right" style="display:flex;align-items:center;gap:8px;">
       <span class="header-step" id="headerStep">Edição</span>
-      <div class="header-badge">v2.0.4</div>
+      <div class="header-badge">v2.0.5</div>
     </div>
   </header>
 
@@ -652,7 +652,7 @@
 </div>
 
 <script>
-  console.log('🔥 BDS VIDEO v2.0.4 — canvas principal + seek');
+  console.log('🔥 BDS VIDEO v2.0.5 — sem seleção no export');
 
   /* ═══════════════════════════════════════════
      VARIÁVEIS GLOBAIS
@@ -1538,6 +1538,11 @@
     // Para preview loop antes de gravar
     previewAtivo = false;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+
+    // Garante que nenhuma seleção/snap apareça nos frames gravados
+    textSelecionado = false;
+    snapX = false;
+    snapY = false;
 
     const overlay = document.getElementById('processingOverlay');
     overlay.classList.add('active');
