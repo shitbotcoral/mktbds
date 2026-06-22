@@ -414,7 +414,7 @@
     </div>
     <div class="header-right" style="display:flex;align-items:center;gap:8px;">
       <span class="header-step" id="headerStep">Edição</span>
-      <div class="header-badge">v2.0</div>
+      <div class="header-badge">v2.0.2</div>
     </div>
   </header>
 
@@ -652,7 +652,7 @@
 </div>
 
 <script>
-  console.log('🔥 BDS VIDEO v2026-06-15-NOVO — se você vê isso o cache foi quebrado');
+  console.log('🔥 BDS VIDEO v2.0.2 — seek-based encoding');
 
   /* ═══════════════════════════════════════════
      VARIÁVEIS GLOBAIS
@@ -1722,170 +1722,70 @@
         }
       }
 
-      // ── 7. Preparação: seek + play ──
-      // Importante: setar muted ANTES do play() pra evitar bloqueio de autoplay
-      videoEl.muted = true;
+      // ── 7. Captura de frames via SEEK (100% confiável, sem rVFC) ──
+      // Pausa o vídeo — vamos controlar a posição manualmente
       videoEl.pause();
+      videoEl.muted = true;
 
-      // Para o preview loop antes de começar — evita conflito de rVFC
-      previewAtivo = false;
-      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      const fps        = 30;
+      const frameCount = Math.max(1, Math.ceil((trimEnd - trimStart) * fps));
+      console.log('[gravarVideo] Seek-based. frames:', frameCount,
+                  '| trimStart:', trimStart, '| trimEnd:', trimEnd);
+      setMsg('Capturando frames... (aguarde)');
 
-      // Seek robusto: usa promise + timeout de segurança caso 'seeked' não dispare
-      await new Promise(resolveSeek => {
-        let resolved = false;
-        const finish = () => {
-          if (resolved) return;
-          resolved = true;
-          videoEl.removeEventListener('seeked', finish);
-          resolveSeek();
-        };
+      for (let i = 0; i < frameCount; i++) {
+        // Verifica watchdog
+        if (loopErro) throw loopErro;
 
-        // Se já está perto da posição, não precisa esperar evento
-        if (Math.abs(videoEl.currentTime - trimStart) < 0.05) {
-          videoEl.currentTime = trimStart; // garante posição exata
-          setTimeout(finish, 100);
-          return;
+        // Verifica encoder
+        if (videoEncoder.state === 'closed')
+          throw videoEncoderError || new Error('VideoEncoder fechou durante encoding');
+
+        // Seek para o instante exato do frame
+        const t = trimStart + (i / fps);
+        if (Math.abs(videoEl.currentTime - t) > 0.016) {
+          videoEl.currentTime = t;
+          await new Promise(res => {
+            let done = false;
+            const finish = () => {
+              if (done) return; done = true;
+              videoEl.removeEventListener('seeked', finish);
+              res();
+            };
+            videoEl.addEventListener('seeked', finish, { once: true });
+            setTimeout(finish, 500); // fallback
+          });
         }
 
-        videoEl.addEventListener('seeked', finish);
-        videoEl.currentTime = trimStart;
-        // Fallback: se não disparar em 2s, segue mesmo assim
-        setTimeout(finish, 2000);
-      });
+        // Renderiza frame composto no OffscreenCanvas
+        renderFrameComposto();
 
-      console.log('[gravarVideo] Seek OK. currentTime:', videoEl.currentTime);
-
-      const zoom = parseInt(document.getElementById('zoomVid').value) / 100;
-      let frameIdx = 0;
-
-      // OffscreenCanvas reutilizado em todos os frames (menos GC, menos memória)
-      const frameOC = new OffscreenCanvas(vW, vH);
-      const fCtx = frameOC.getContext('2d');
-
-      // Função que renderiza UM frame composto no OffscreenCanvas
-      const renderFrameComposto = () => {
-        fCtx.fillStyle = '#000';
-        fCtx.fillRect(0, 0, vW, vH);
-
-        if (modoComposicao === 'split') {
-          // TOP: vídeo principal
-          fCtx.save();
-          fCtx.beginPath();
-          fCtx.rect(0, 0, vW, vH/2);
-          fCtx.clip();
-          fCtx.drawImage(videoEl, vidOffX, vidOffY,
-            videoEl.videoWidth  * vidScale * zoom,
-            videoEl.videoHeight * vidScale * zoom);
-          fCtx.restore();
-
-          // BOTTOM: segunda mídia
-          if (media2.loaded) {
-            fCtx.save();
-            fCtx.beginPath();
-            fCtx.rect(0, vH/2, vW, vH/2);
-            fCtx.clip();
-            fCtx.drawImage(media2.el,
-              media2.offX, vH/2 + media2.offY,
-              media2.natW * media2.scale,
-              media2.natH * media2.scale);
-            fCtx.restore();
-          }
-
-          // Linha divisória
-          fCtx.fillStyle = '#000';
-          fCtx.fillRect(0, vH/2 - 2, vW, 4);
-        } else {
-          fCtx.drawImage(videoEl, vidOffX, vidOffY,
-            videoEl.videoWidth  * vidScale * zoom,
-            videoEl.videoHeight * vidScale * zoom);
+        // Cria e encoda VideoFrame (timestamp estritamente crescente)
+        const ts    = Math.round(i * (1_000_000 / fps));
+        const frame = new VideoFrame(frameOC, {
+          timestamp: ts,
+          duration:  Math.round(1_000_000 / fps),
+        });
+        try {
+          videoEncoder.encode(frame, { keyFrame: i % 60 === 0 });
+        } finally {
+          frame.close();
         }
-        fCtx.drawImage(overlayBitmap, 0, 0);
-      };
 
-      // Garante que tem um frame pintado antes de começar a gravar
-      renderFrameComposto();
+        lastFrameTime = Date.now(); // reseta watchdog
 
-      setMsg('Codificando vídeo... (aguarde)');
+        // Progresso 0 → 90%
+        const pct = Math.min(90, Math.round((i / frameCount) * 90));
+        document.getElementById('procPct').textContent = pct + '%';
+        document.getElementById('procBar').style.width  = pct + '%';
 
-      // ── 8. Inicia playback e captura frames ──
-      // Estratégia: play primeiro, depois registra requestVideoFrameCallback.
-      // Isso garante que o callback dispare em frames REAIS do vídeo.
-      try {
-        await videoEl.play();
-      } catch(e) {
-        throw new Error('Não foi possível iniciar o vídeo: ' + e.message);
+        // Yield a cada 5 frames para manter a UI responsiva
+        if (i % 5 === 4) await new Promise(r => setTimeout(r, 0));
       }
-      console.log('[gravarVideo] play() OK. Iniciando captura de frames.');
 
-      // Watchdog: se nenhum frame for processado em 20s, aborta com erro
-      let loopErro = null;
-      let loopAcabou = false;
-      let lastFrameTime = Date.now();
-      const watchdogId = setInterval(() => {
-        if (Date.now() - lastFrameTime > 20000) {
-          clearInterval(watchdogId);
-          loopErro = new Error('Travou durante a codificação. Tente recarregar a página ou usar um vídeo mais curto.');
-        }
-      }, 1000);
+      console.log('[gravarVideo] Todos os frames capturados:', frameCount);
 
-      // Loop de captura via requestVideoFrameCallback
-      await new Promise((resolve, reject) => {
-        const onFrame = (now, meta) => {
-          if (loopErro) { clearInterval(watchdogId); reject(loopErro); return; }
-          if (loopAcabou) { clearInterval(watchdogId); resolve(); return; }
-
-          try {
-            if (frameIdx === 0) console.log('[gravarVideo] Primeiro frame! mediaTime:', meta.mediaTime);
-
-            if (videoEncoder.state === 'closed') {
-              clearInterval(watchdogId);
-              return reject(videoEncoderError || new Error('VideoEncoder fechou durante encoding'));
-            }
-
-            // Renderiza frame composto
-            renderFrameComposto();
-
-            // Cria VideoFrame com timestamp estritamente crescente
-            const ts = Math.round(frameIdx * (1_000_000 / 30));
-            const frame = new VideoFrame(frameOC, {
-              timestamp: ts,
-              duration: Math.round(1_000_000 / 30),
-            });
-
-            try {
-              videoEncoder.encode(frame, { keyFrame: frameIdx % 60 === 0 });
-            } finally {
-              frame.close();
-            }
-            frameIdx++;
-            lastFrameTime = Date.now();
-
-            // Atualiza progresso (0-90% reservado pra gravação do vídeo)
-            const pct = Math.min(90, Math.round(((videoEl.currentTime - trimStart) / Math.max(0.1, trimEnd - trimStart)) * 90));
-            document.getElementById('procPct').textContent = pct + '%';
-            document.getElementById('procBar').style.width = pct + '%';
-
-            // Atingiu o fim do trecho?
-            if (videoEl.currentTime >= trimEnd - 0.05 || videoEl.ended) {
-              loopAcabou = true;
-              clearInterval(watchdogId);
-              videoEl.pause();
-              resolve();
-              return;
-            }
-
-            // Continua: agenda próximo frame
-            videoEl.requestVideoFrameCallback(onFrame);
-          } catch(e) {
-            clearInterval(watchdogId);
-            reject(e);
-          }
-        };
-
-        videoEl.requestVideoFrameCallback(onFrame);
-      });
-
+      // ── 9. Codifica áudio
       // ── 9. Codifica áudio (fora do loop do vídeo — mais rápido) ──
       console.log('[gravarVideo] Loop de vídeo OK. frameIdx:', frameIdx, '| partindo pro áudio...');
       if (audioBuffer && audioEncoder) {
