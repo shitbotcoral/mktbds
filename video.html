@@ -414,7 +414,7 @@
     </div>
     <div class="header-right" style="display:flex;align-items:center;gap:8px;">
       <span class="header-step" id="headerStep">Edição</span>
-      <div class="header-badge">v2.0.3</div>
+      <div class="header-badge">v2.0.4</div>
     </div>
   </header>
 
@@ -652,7 +652,7 @@
 </div>
 
 <script>
-  console.log('🔥 BDS VIDEO v2.0.3 — seek-based + watchdog fix');
+  console.log('🔥 BDS VIDEO v2.0.4 — canvas principal + seek');
 
   /* ═══════════════════════════════════════════
      VARIÁVEIS GLOBAIS
@@ -1530,302 +1530,159 @@
   /* ─── Gravação: WebCodecs + mp4-muxer
      Processa frame a frame, saída H.264 MP4 real, sem trava ─── */
   async function gravarVideo() {
-    console.log('[gravarVideo] versão 2026-06-15-c — codecs Level 4.0+');
     if (!videoLoaded) { showToast('Adicione um vídeo primeiro', 'erro'); return null; }
     if (typeof VideoEncoder === 'undefined') {
-      showToast('WebCodecs não suportado. Use Chrome ou Edge atualizado.', 'erro');
-      return null;
+      showToast('WebCodecs não suportado. Use Chrome ou Edge atualizado.', 'erro'); return null;
     }
 
-    textSelecionado = false; snapX = false; snapY = false;
+    // Para preview loop antes de gravar
+    previewAtivo = false;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    renderFrame();
 
     const overlay = document.getElementById('processingOverlay');
     overlay.classList.add('active');
     document.getElementById('procPct').textContent = '0%';
-    document.getElementById('procBar').style.width = '0%';
+    document.getElementById('procBar').style.width  = '0%';
+    setMsg('Iniciando...');
+
+    console.log('[gravarVideo] v2.0.4 iniciando');
 
     try {
-      // ── 1. Carrega mp4-muxer via fetch → blob URL (100% confiável) ──
+      // ── 1. Carrega mp4-muxer ──
       setMsg('Carregando muxer...');
-      let Muxer, ArrayBufferTarget;
+      const { Muxer, ArrayBufferTarget } = await carregarMp4Muxer();
 
-      async function carregarMp4Muxer() {
-        // Lista de CDNs do bundle UMD
-        const bundleURLs = [
-          'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js',
-          'https://unpkg.com/mp4-muxer@5.1.3/build/mp4-muxer.js',
-        ];
-
-        for (const url of bundleURLs) {
-          try {
-            const resp = await fetch(url);
-            if (!resp.ok) continue;
-            const text = await resp.text();
-
-            // Empacota o UMD como ESM via blob URL (same-origin, sem CORS)
-            const esmCode = `
-              const _m = { exports: {} };
-              (function(module, exports, define) {
-                ${text}
-              })(_m, _m.exports, undefined);
-              export const Muxer = _m.exports.Muxer || _m.exports.default?.Muxer;
-              export const ArrayBufferTarget = _m.exports.ArrayBufferTarget || _m.exports.default?.ArrayBufferTarget;
-            `;
-
-            const blob   = new Blob([esmCode], { type: 'text/javascript' });
-            const blobUrl = URL.createObjectURL(blob);
-
-            try {
-              const mod = await import(blobUrl);
-              if (typeof mod.Muxer === 'function' && typeof mod.ArrayBufferTarget === 'function') {
-                console.log('[mp4-muxer] OK via blob de:', url);
-                return { Muxer: mod.Muxer, ArrayBufferTarget: mod.ArrayBufferTarget };
-              }
-            } finally {
-              URL.revokeObjectURL(blobUrl);
-            }
-          } catch(e) { console.warn('[mp4-muxer] falhou:', url, e); }
-        }
-
-        // Último recurso: import() direto de CDNs ESM
-        const esmURLs = [
-          'https://esm.sh/mp4-muxer@5.1.3',
-          'https://cdn.skypack.dev/mp4-muxer@5.1.3',
-        ];
-        for (const url of esmURLs) {
-          try {
-            const mod = await import(url);
-            const M   = mod.Muxer            || mod.default?.Muxer;
-            const A   = mod.ArrayBufferTarget || mod.default?.ArrayBufferTarget;
-            if (typeof M === 'function' && typeof A === 'function') {
-              console.log('[mp4-muxer] OK via ESM de:', url);
-              return { Muxer: M, ArrayBufferTarget: A };
-            }
-          } catch(e) { console.warn('[mp4-muxer] ESM falhou:', url, e); }
-        }
-
-        throw new Error('Não foi possível carregar mp4-muxer. Verifique sua conexão com a internet.');
-      }
-
-      ({ Muxer, ArrayBufferTarget } = await carregarMp4Muxer());
-
-      const vW = CW, vH = CH; // saída 1080×1920 (igual ao preview)
-
-      // ── 2. Pré-renderiza overlay + texto em OffscreenCanvas estático ──
-      setMsg('Preparando overlay...');
-      const staticOC = new OffscreenCanvas(vW, vH);
-      const sCtx = staticOC.getContext('2d');
-      if (overlayImg) sCtx.drawImage(overlayImg, 0, 0, vW, vH);
-      const texto = document.getElementById('textInput').value.toUpperCase();
-      if (texto.trim()) {
-        const fs = parseInt(document.getElementById('fontSize').value);
-        const lh = parseInt(document.getElementById('lineHeight').value);
-        const mw = parseInt(document.getElementById('maxWidth').value);
-        sCtx.font = `${fs}px 'Bebas Neue', sans-serif`;
-        sCtx.textBaseline = 'middle';
-        sCtx.fillStyle = '#ffffff';
-        wrapText(sCtx, texto, textX, textY, mw, lh, alinhamento);
-      }
-      const overlayBitmap = await createImageBitmap(staticOC);
-
-      // ── 3. Decodifica áudio do arquivo original ──
+      // ── 2. Decodifica áudio ──
       setMsg('Decodificando áudio...');
       let audioBuffer = null;
       try {
         const audioCtx = new AudioContext();
         audioBuffer = await audioCtx.decodeAudioData(await videoFile.arrayBuffer());
-      } catch(e) { console.warn('Sem áudio ou falha ao decodificar:', e); }
+      } catch(e) { console.warn('[gravarVideo] Sem áudio:', e.message); }
 
-      // ── 4. Configura muxer ──
+      // ── 3. Configura muxer ──
       const muxerCfg = {
         target: new ArrayBufferTarget(),
-        video: { codec: 'avc', width: vW, height: vH },
+        video: { codec: 'avc', width: CW, height: CH },
         fastStart: 'in-memory',
-        firstTimestampBehavior: 'offset', // normaliza timestamps começando do 0
+        firstTimestampBehavior: 'offset',
       };
       if (audioBuffer) {
-        muxerCfg.audio = {
-          codec: 'aac',
-          sampleRate: audioBuffer.sampleRate,
-          numberOfChannels: audioBuffer.numberOfChannels,
-        };
+        muxerCfg.audio = { codec: 'aac', sampleRate: audioBuffer.sampleRate, numberOfChannels: audioBuffer.numberOfChannels };
       }
       const muxer = new Muxer(muxerCfg);
 
-      // ── 5. VideoEncoder — testa codec suportado antes de configurar ──
-      // Level 4.0+ obrigatório para 1080×1920 (Level 3.1 suporta só até 1280×720)
-      const codecCandidates = [
-        'avc1.640028', // H.264 High Profile Level 4.0   ← ideal
-        'avc1.4d0028', // H.264 Main Profile Level 4.0
-        'avc1.420028', // H.264 Baseline Level 4.0
-        'avc1.640032', // H.264 High Profile Level 5.0   ← fallback amplo
-        'avc1.4d0032', // H.264 Main Profile Level 5.0
-      ];
-      console.log('[VideoEncoder] Resolução alvo:', vW, 'x', vH);
-      console.log('[VideoEncoder] Testando', codecCandidates.length, 'codecs...');
+      // ── 4. VideoEncoder — testa codec suportado ──
+      const codecs = ['avc1.640028','avc1.4d0028','avc1.420028','avc1.640032','avc1.4d0032'];
       let videoConfig = null;
-      for (const codec of codecCandidates) {
+      for (const codec of codecs) {
         try {
-          const result = await VideoEncoder.isConfigSupported({
-            codec, width: vW, height: vH, bitrate: 5_000_000, framerate: 30, latencyMode: 'realtime'
-          });
-          console.log(`[VideoEncoder] ${codec} →`, result.supported ? '✓ SUPORTADO' : '✗ não suportado');
-          if (result.supported) {
-            videoConfig = { codec, width: vW, height: vH, bitrate: 5_000_000, framerate: 30, latencyMode: 'realtime' };
-            break;
-          }
-        } catch(e) {
-          console.warn(`[VideoEncoder] ${codec} → erro:`, e.message);
-        }
+          const { supported } = await VideoEncoder.isConfigSupported({ codec, width: CW, height: CH, bitrate: 5_000_000, framerate: 30, latencyMode: 'realtime' });
+          console.log('[VideoEncoder]', codec, '->', supported ? '✓' : '✗');
+          if (supported) { videoConfig = { codec, width: CW, height: CH, bitrate: 5_000_000, framerate: 30, latencyMode: 'realtime' }; break; }
+        } catch(e) {}
       }
-      if (!videoConfig) throw new Error('Nenhum codec H.264 suportado neste browser. Use Chrome ou Edge atualizado.');
+      if (!videoConfig) throw new Error('Nenhum codec H.264 suportado neste browser.');
 
       let videoEncoderError = null;
       const videoEncoder = new VideoEncoder({
-        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-        error: (e) => { videoEncoderError = e; console.error('VideoEncoder erro:', e); },
+        output: (chunk, meta) => { try { muxer.addVideoChunk(chunk, meta); } catch(e) { console.warn('[muxer] addVideoChunk:', e.message); } },
+        error: (e) => { videoEncoderError = e; console.error('[VideoEncoder] erro:', e); },
       });
       videoEncoder.configure(videoConfig);
+      await new Promise(r => setTimeout(r, 100));
+      if (videoEncoder.state === 'closed') throw videoEncoderError || new Error('VideoEncoder fechou após configure()');
+      console.log('[VideoEncoder] OK, state:', videoEncoder.state);
 
-      // Aguarda um tick pra erro de configure se propagar
-      await new Promise(r => setTimeout(r, 50));
-      if (videoEncoder.state === 'closed') {
-        throw videoEncoderError || new Error('VideoEncoder fechou após configure(). Codec: ' + videoConfig.codec);
-      }
-      console.log('[VideoEncoder] OK — codec:', videoConfig.codec, '| state:', videoEncoder.state);
-
-      // ── 6. AudioEncoder (se houver áudio) ──
+      // ── 5. AudioEncoder ──
       let audioEncoder = null;
       if (audioBuffer) {
-        let audioEncoderError = null;
         audioEncoder = new AudioEncoder({
-          output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-          error: (e) => { audioEncoderError = e; console.warn('AudioEncoder erro:', e); },
+          output: (chunk, meta) => { try { muxer.addAudioChunk(chunk, meta); } catch(e) {} },
+          error: (e) => console.warn('[AudioEncoder]', e),
         });
         try {
-          audioEncoder.configure({
-            codec: 'mp4a.40.2',
-            sampleRate: audioBuffer.sampleRate,
-            numberOfChannels: audioBuffer.numberOfChannels,
-            bitrate: 128_000,
-          });
-          await new Promise(r => setTimeout(r, 50));
-          if (audioEncoder.state === 'closed') {
-            console.warn('AudioEncoder fechou — continuando sem áudio.');
-            audioEncoder = null;
-          }
-        } catch(e) {
-          console.warn('AudioEncoder configure falhou — sem áudio:', e);
-          audioEncoder = null;
-        }
+          audioEncoder.configure({ codec: 'mp4a.40.2', sampleRate: audioBuffer.sampleRate, numberOfChannels: audioBuffer.numberOfChannels, bitrate: 128_000 });
+          await new Promise(r => setTimeout(r, 100));
+          if (audioEncoder.state === 'closed') { audioEncoder = null; console.warn('[AudioEncoder] fechou, sem áudio'); }
+        } catch(e) { audioEncoder = null; }
       }
 
-      // ── 7. Captura de frames via SEEK (100% confiável, sem rVFC) ──
-      // Pausa o vídeo — vamos controlar a posição manualmente
+      // ── 6. Seek para o início ──
       videoEl.pause();
       videoEl.muted = true;
+      if (Math.abs(videoEl.currentTime - trimStart) > 0.05) {
+        videoEl.currentTime = trimStart;
+        await new Promise(r => { videoEl.addEventListener('seeked', r, {once:true}); setTimeout(r, 1500); });
+      }
+      console.log('[gravarVideo] Seek OK, currentTime:', videoEl.currentTime);
 
+      // ── 7. Captura frames via seek + renderFrame() no canvas principal ──
       const fps        = 30;
       const frameCount = Math.max(1, Math.ceil((trimEnd - trimStart) * fps));
-      console.log('[gravarVideo] Seek-based. frames:', frameCount,
-                  '| trimStart:', trimStart, '| trimEnd:', trimEnd);
-      setMsg('Capturando frames... (aguarde)');
+      setMsg('Capturando ' + frameCount + ' frames...');
+      console.log('[gravarVideo] frames:', frameCount, '| trimEnd:', trimEnd);
 
-      // Watchdog: se travar por 60s sem progresso, aborta
-      let loopErro = null;
-      let lastFrameTime = Date.now();
-      const watchdogId = setInterval(() => {
-        if (Date.now() - lastFrameTime > 60000) {
-          clearInterval(watchdogId);
-          loopErro = new Error('Travou durante a captura (>60s sem progresso). Tente um vídeo mais curto.');
-        }
-      }, 2000);
-
-      try {
       for (let i = 0; i < frameCount; i++) {
-        // Verifica watchdog
-        if (loopErro) throw loopErro;
+        if (videoEncoderError) throw videoEncoderError;
+        if (videoEncoder.state === 'closed') throw videoEncoderError || new Error('VideoEncoder fechou');
 
-        // Verifica encoder
-        if (videoEncoder.state === 'closed')
-          throw videoEncoderError || new Error('VideoEncoder fechou durante encoding');
-
-        // Seek para o instante exato do frame
+        // Seek para o instante exato
         const t = trimStart + (i / fps);
         if (Math.abs(videoEl.currentTime - t) > 0.016) {
           videoEl.currentTime = t;
-          await new Promise(res => {
+          await new Promise(r => {
             let done = false;
-            const finish = () => {
-              if (done) return; done = true;
-              videoEl.removeEventListener('seeked', finish);
-              res();
-            };
-            videoEl.addEventListener('seeked', finish, { once: true });
-            setTimeout(finish, 500); // fallback
+            const fin = () => { if (done) return; done = true; r(); };
+            videoEl.addEventListener('seeked', fin, {once: true});
+            setTimeout(fin, 800);
           });
         }
 
-        // Renderiza frame composto no OffscreenCanvas
-        renderFrameComposto();
+        // Renderiza no canvas principal (mesma função do preview — já funciona)
+        renderFrame();
 
-        // Cria e encoda VideoFrame (timestamp estritamente crescente)
-        const ts    = Math.round(i * (1_000_000 / fps));
-        const frame = new VideoFrame(frameOC, {
-          timestamp: ts,
-          duration:  Math.round(1_000_000 / fps),
-        });
+        // Cria VideoFrame a partir do canvas principal (sem OffscreenCanvas)
+        const ts  = Math.round(i * (1_000_000 / fps));
+        const dur = Math.round(1_000_000 / fps);
+        let frame;
+        try {
+          frame = new VideoFrame(canvas, { timestamp: ts, duration: dur });
+        } catch(frameErr) {
+          console.error('[gravarVideo] VideoFrame error (frame', i, '):', frameErr.message);
+          throw new Error('Erro ao criar frame de vídeo: ' + frameErr.message);
+        }
+
         try {
           videoEncoder.encode(frame, { keyFrame: i % 60 === 0 });
         } finally {
           frame.close();
         }
 
-        lastFrameTime = Date.now(); // reseta watchdog
-
         // Progresso 0 → 90%
         const pct = Math.min(90, Math.round((i / frameCount) * 90));
         document.getElementById('procPct').textContent = pct + '%';
         document.getElementById('procBar').style.width  = pct + '%';
 
-        // Yield a cada 5 frames para manter a UI responsiva
+        // Yield a cada 5 frames
         if (i % 5 === 4) await new Promise(r => setTimeout(r, 0));
       }
 
-      console.log('[gravarVideo] Todos os frames capturados:', frameCount);
-      } finally {
-        clearInterval(watchdogId); // limpa watchdog independente do resultado
-      }
+      console.log('[gravarVideo] Todos os frames OK. Finalizando...');
 
-      // ── 9. Codifica áudio
-      // ── 9. Codifica áudio (fora do loop do vídeo — mais rápido) ──
-      console.log('[gravarVideo] Loop de vídeo OK. frameIdx:', frameIdx, '| partindo pro áudio...');
+      // ── 8. Áudio ──
       if (audioBuffer && audioEncoder) {
         setMsg('Codificando áudio...');
-        const sr   = audioBuffer.sampleRate;
-        const nCh  = audioBuffer.numberOfChannels;
-        const s0   = Math.floor(trimStart * sr);
-        const s1   = Math.ceil(trimEnd   * sr);
-        const total = s1 - s0;
-        const chunk = 4096;
+        const sr = audioBuffer.sampleRate, nCh = audioBuffer.numberOfChannels;
+        const s0 = Math.floor(trimStart * sr), s1 = Math.ceil(trimEnd * sr);
+        const total = s1 - s0, chunk = 4096;
         let done = 0;
-
         while (done < total) {
           const n = Math.min(chunk, total - done);
           const data = new Float32Array(n * nCh);
-          for (let ch = 0; ch < nCh; ch++) {
-            data.set(audioBuffer.getChannelData(ch).subarray(s0 + done, s0 + done + n), ch * n);
-          }
-          const ad = new AudioData({
-            format: 'f32-planar',
-            sampleRate: sr,
-            numberOfFrames: n,
-            numberOfChannels: nCh,
-            timestamp: Math.round((done / sr) * 1_000_000),
-            data,
-          });
+          for (let ch = 0; ch < nCh; ch++)
+            data.set(audioBuffer.getChannelData(ch).subarray(s0+done, s0+done+n), ch*n);
+          const ad = new AudioData({ format:'f32-planar', sampleRate:sr, numberOfFrames:n, numberOfChannels:nCh, timestamp:Math.round((done/sr)*1_000_000), data });
           audioEncoder.encode(ad);
           ad.close();
           done += n;
@@ -1833,47 +1690,72 @@
         await audioEncoder.flush();
       }
 
-      // ── 10. Finaliza e empacota MP4 ──
-      setMsg('Aguardando encoder finalizar...');
-      console.log('[gravarVideo] Aguardando videoEncoder.flush()...');
-
-      // flush() com timeout de 30s pra não travar silenciosamente
+      // ── 9. Finaliza MP4 ──
+      setMsg('Finalizando MP4...');
+      console.log('[gravarVideo] videoEncoder.flush()...');
       await Promise.race([
         videoEncoder.flush(),
-        new Promise((_, rej) => setTimeout(() =>
-          rej(new Error('videoEncoder.flush() travou (>30s). Tente um vídeo mais curto.')), 30000))
+        new Promise((_,rej) => setTimeout(() => rej(new Error('flush() timeout (30s)')), 30000))
       ]);
-
-      console.log('[gravarVideo] flush() OK. Finalizando muxer...');
-      setMsg('Finalizando MP4...');
-      overlayBitmap.close();
+      console.log('[gravarVideo] flush OK. muxer.finalize()...');
       muxer.finalize();
 
       document.getElementById('procPct').textContent = '100%';
-      document.getElementById('procBar').style.width = '100%';
+      document.getElementById('procBar').style.width  = '100%';
 
-      console.log('[gravarVideo] muxer.finalize() OK! Gerando blob...');
       const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
-      console.log('[gravarVideo] Blob gerado:', (blob.size / 1024 / 1024).toFixed(1), 'MB');
+      console.log('[gravarVideo] Blob gerado:', (blob.size/1024/1024).toFixed(1), 'MB');
       overlay.classList.remove('active');
-
-      // Reativa preview loop
       previewAtivo = true;
-      videoEl.currentTime = trimStart;
       videoEl.muted = false;
-
+      videoEl.currentTime = trimStart;
       return blob;
 
     } catch(err) {
-      previewAtivo = true; // libera preview mesmo em caso de erro
+      previewAtivo = true;
       document.getElementById('processingOverlay').classList.remove('active');
       showToast('Erro: ' + err.message, 'erro');
-      console.error('[gravarVideo] ERRO:', err);
+      console.error('[gravarVideo] ERRO FINAL:', err);
       return null;
     }
   }
 
-    /* ─── Salvar apenas o vídeo (download local) ─── */
+  /* Helper: carrega mp4-muxer de múltiplos CDNs */
+  async function carregarMp4Muxer() {
+    const bundleURLs = [
+      'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js',
+      'https://unpkg.com/mp4-muxer@5.1.3/build/mp4-muxer.js',
+    ];
+    for (const url of bundleURLs) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        const text = await resp.text();
+        const esmCode = `const _m={exports:{}};(function(module,exports,define){${text}})(_m,_m.exports,undefined);export const Muxer=_m.exports.Muxer||_m.exports.default?.Muxer;export const ArrayBufferTarget=_m.exports.ArrayBufferTarget||_m.exports.default?.ArrayBufferTarget;`;
+        const blob   = new Blob([esmCode], {type:'text/javascript'});
+        const blobUrl = URL.createObjectURL(blob);
+        try {
+          const mod = await import(blobUrl);
+          if (typeof mod.Muxer==='function' && typeof mod.ArrayBufferTarget==='function') {
+            console.log('[mp4-muxer] OK via blob de:', url);
+            URL.revokeObjectURL(blobUrl);
+            return {Muxer:mod.Muxer, ArrayBufferTarget:mod.ArrayBufferTarget};
+          }
+        } finally { URL.revokeObjectURL(blobUrl); }
+      } catch(e) { console.warn('[mp4-muxer] falhou:', url, e.message); }
+    }
+    // Fallback: ESM direto
+    for (const url of ['https://esm.sh/mp4-muxer@5.1.3','https://cdn.skypack.dev/mp4-muxer@5.1.3']) {
+      try {
+        const mod = await import(url);
+        const M = mod.Muxer||mod.default?.Muxer, A = mod.ArrayBufferTarget||mod.default?.ArrayBufferTarget;
+        if (typeof M==='function' && typeof A==='function') { console.log('[mp4-muxer] ESM OK:', url); return {Muxer:M,ArrayBufferTarget:A}; }
+      } catch(e) {}
+    }
+    throw new Error('Não foi possível carregar mp4-muxer.');
+  }
+
+  /* ─── Salvar apenas o vídeo (download local) ─── */
   function somenteSalvarVideo() {
     if (!videoBlobFinal) { showToast('Nenhum vídeo gerado', 'erro'); return; }
     const nome = document.getElementById('videoFileTag').textContent || ('sortetv_video_' + Date.now() + '.mp4');
