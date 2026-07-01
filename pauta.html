@@ -119,6 +119,7 @@
 
     .radio-grid { display: grid; gap: 8px; }
     .radio-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+    .radio-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
     .radio-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
 
     .radio-opt { display: none; }
@@ -244,6 +245,7 @@
       display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px;
     }
     .card-post.squad { border-left-color: var(--accent); }
+    .card-post.bet   { border-left-color: #e83030; }
 
     .card-hora { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px; color: var(--accent); }
     .card-canal { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 11px; color: var(--muted); }
@@ -406,8 +408,9 @@
 
       <div>
         <span class="field-label">Canal</span>
-        <div class="radio-grid cols-2">
-          <div><input type="radio" id="c-sorte" name="canal" value="SORTE TV" class="radio-opt"><label for="c-sorte" class="radio-label">Sorte TV</label></div>
+        <div class="radio-grid cols-3">
+          <div><input type="radio" id="c-bet"   name="canal" value="BET DA SORTE"   class="radio-opt"><label for="c-bet"   class="radio-label">Bet dá Sorte</label></div>
+          <div><input type="radio" id="c-sorte" name="canal" value="SORTE TV"       class="radio-opt"><label for="c-sorte" class="radio-label">Sorte TV</label></div>
           <div><input type="radio" id="c-squad" name="canal" value="SQUAD DA SORTE" class="radio-opt"><label for="c-squad" class="radio-label">Squad</label></div>
         </div>
       </div>
@@ -511,8 +514,9 @@
     <div class="edit-section">
       <div>
         <span class="field-label">Canal</span>
-        <div class="radio-grid cols-2">
-          <div><input type="radio" id="eCanal-s" name="eCanal" value="SORTE TV" class="radio-opt"><label for="eCanal-s" class="radio-label" style="padding:10px;">Sorte TV</label></div>
+        <div class="radio-grid cols-3">
+          <div><input type="radio" id="eCanal-b" name="eCanal" value="BET DA SORTE"   class="radio-opt"><label for="eCanal-b" class="radio-label" style="padding:10px;">Bet dá Sorte</label></div>
+          <div><input type="radio" id="eCanal-s" name="eCanal" value="SORTE TV"       class="radio-opt"><label for="eCanal-s" class="radio-label" style="padding:10px;">Sorte TV</label></div>
           <div><input type="radio" id="eCanal-q" name="eCanal" value="SQUAD DA SORTE" class="radio-opt"><label for="eCanal-q" class="radio-label" style="padding:10px;">Squad</label></div>
         </div>
       </div>
@@ -780,7 +784,9 @@
 
       porData[data].sort((a, b) => horaEmMin(a.hora) - horaEmMin(b.hora)).forEach(post => {
         const card = document.createElement('div');
-        card.className = 'card-post' + (post.canal === 'SQUAD DA SORTE' ? ' squad' : '');
+        card.className = 'card-post' + 
+          (post.canal === 'SQUAD DA SORTE' ? ' squad' : 
+           post.canal === 'BET DA SORTE'   ? ' bet'   : '');
 
         const assuntoLabel = post.assunto + (post.isPromo ? ' PROMO' : '');
 
