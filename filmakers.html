@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="img/icone.png">
+  <link rel="apple-touch-icon" href="img/icone.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ffb700">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>FILMAKERS BDS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo+Black&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:      #02122c;
+      --panel:   #071a3e;
+      --surface: #0a2150;
+      --border:  #0e3272;
+      --accent:  #ffb700;
+      --accent-d:#cc8f00;
+      --red:     #e03030;
+      --green:   #1a7a3a;
+      --text:    #e8edf5;
+      --muted:   #4a6fa5;
+      --radius:  10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: 'Archivo', sans-serif;
+      background: #010812;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex; justify-content: center; align-items: flex-start;
+      padding: 0;
+    }
+
+    .app {
+      width: 100%; max-width: 420px; min-height: 100vh;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      box-shadow: 0 0 80px rgba(0,0,0,0.9);
+    }
+
+    @media (min-width: 440px) {
+      body { align-items: center; padding: 20px 0; }
+      .app { min-height: unset; border-radius: 20px; border: 2px solid #0a1a3a; }
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--panel);
+      border-bottom: 2px solid var(--accent);
+      padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .back-link {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--muted);
+      text-decoration: none; transition: color 0.15s, border-color 0.15s;
+    }
+    .back-link:hover { color: var(--accent); border-color: var(--accent); }
+    .header-logo { height: 22px; width: auto; cursor: pointer; transition: opacity 0.15s; }
+    .header-logo:hover { opacity: 0.8; }
+    .header-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 2px; }
+    .header-title span { color: var(--accent); }
+    .header-badge {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 9px; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; padding: 3px 8px;
+    }
+
+    /* ── Scroll / Form ── */
+    .scroll {
+      flex: 1; overflow-y: auto; padding: 16px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .scroll::-webkit-scrollbar { width: 3px; }
+    .scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Blocos ── */
+    .bloco {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .bloco-head {
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .bloco-titulo {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase;
+    }
+    .bloco-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* ── Campos ── */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field-label {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: 9px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase;
+    }
+    .input-field {
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-family: 'Archivo', sans-serif; font-weight: 600; font-size: 14px;
+      padding: 12px 14px; outline: none; transition: border-color 0.2s;
+      width: 100%;
+    }
+    .input-field:focus { border-color: var(--accent); }
+    .input-field::placeholder { color: var(--muted); font-weight: 400; }
+    .input-field.erro { border-color: var(--red); background: rgba(224,48,48,0.05); }
+
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* ── Radio (categoria) ── */
+    .radio-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .radio-opt { display: none; }
+    .radio-label {
+      display: flex; align-items: center; justify-content: center;
+      padding: 11px 8px; border-radius: 8px; cursor: pointer;
+      background: var(--bg); border: 1.5px solid var(--border);
+      font-family: 'Archivo Black', sans-serif; font-size: 11px;
+      color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase;
+      transition: all 0.15s; text-align: center;
+    }
+    .radio-opt:checked + .radio-label {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(255,183,0,0.08);
+    }
+
+    /* ── Upload area ── */
+    .upload-area {
+      border: 2px dashed var(--border); border-radius: var(--radius);
+      padding: 24px 16px; text-align: center; cursor: pointer;
+      transition: all 0.2s; position: relative; background: var(--bg);
+    }
+    .upload-area:hover, .upload-area.dragover {
+      border-color: var(--accent); background: rgba(255,183,0,0.04);
+    }
+    .upload-area.tem-arquivo {
+      border-color: var(--green); background: rgba(26,122,58,0.06);
+      border-style: solid;
+    }
+    .upload-area.erro-size {
+      border-color: var(--red); background: rgba(224,48,48,0.05);
+      border-style: solid;
+    }
+    .upload-icon { margin-bottom: 8px; color: var(--muted); }
+    .upload-area.tem-arquivo .upload-icon { color: var(--green); }
+    .upload-area.erro-size .upload-icon { color: var(--red); }
+    .upload-titulo {
+      font-family: 'Archivo Black', sans-serif; font-size: 12px;
+      color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .upload-area.tem-arquivo .upload-titulo { color: var(--green); }
+    .upload-area.erro-size .upload-titulo { color: var(--red); }
+    .upload-sub { font-size: 11px; color: var(--muted); }
+    #fileInput { display: none; }
+
+    /* Barra de progresso do upload */
+    .progress-wrap {
+      background: var(--border); border-radius: 4px; height: 5px;
+      overflow: hidden; margin-top: 10px; display: none;
+    }
+    .progress-bar {
+      height: 100%; background: var(--accent); border-radius: 4px;
+      transition: width 0.3s; width: 0%;
+    }
+
+    /* ── Separador OU ── */
+    .ou-divider {
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'Archivo Black', sans-serif; font-size: 10px;
+      color: var(--muted); letter-spacing: 2px;
+    }
+    .ou-divider::before, .ou-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── Footer / Botão ── */
+    .footer {
+      padding: 14px 16px;
+      background: var(--panel); border-top: 1px solid var(--border);
+    }
+    .btn-submit {
+      width: 100%; padding: 15px;
+      background: var(--accent); color: var(--bg);
+      border: none; border-radius: var(--radius);
+      font-family: 'Archivo Black', sans-serif; font-size: 14px;
+      letter-spacing: 2px; text-transform: uppercase;
+      cursor: pointer; box-shadow: 0 4px 0 var(--accent-d);
+      transition: all 0.1s;
+    }
+    .btn-submit:hover { background: #ffc520; }
+    .btn-submit:active { transform: translateY(4px); box-shadow: none; }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--accent); color: var(--bg);
+      padding: 10px 22px; border-radius: 20px;
+      font-family: 'Archivo Black', sans-serif; font-size: 11px;
+      letter-spacing: 1px; text-transform: uppercase;
+      z-index: 9999; transition: transform 0.3s;
+      pointer-events: none; white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.erro { background: var(--red); color: #fff; }
+    #toast.ok   { background: var(--green); color: #fff; }
+
+    /* ── Info do usuário ── */
+    .user-badge {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px;
+      background: rgba(255,183,0,0.06); border: 1px solid rgba(255,183,0,0.15);
+      border-radius: 8px;
+    }
+    .user-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--accent); color: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Archivo Black', sans-serif; font-size: 13px; flex-shrink: 0;
+    }
+    .user-info { display: flex; flex-direction: column; gap: 2px; }
+    .user-name { font-family: 'Archivo Black', sans-serif; font-size: 13px; color: var(--accent); }
+    .user-role { font-size: 10px; color: var(--muted); }
+
+    .msg-erro { font-size: 11px; color: var(--red); min-height: 14px; font-family: 'Archivo Black', sans-serif; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="header-left">
+      <a href="hub.html" class="back-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </a>
+      <img src="img/logobds.png" alt="BDS" class="header-logo" onclick="location.href='hub.html'">
+      <div class="header-title">Film<span>makers</span></div>
+    </div>
+    <div class="header-badge">v1.0</div>
+  </header>
+
+  <div class="scroll">
+
+    <!-- Responsável -->
+    <div class="bloco">
+      <div class="bloco-head">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="bloco-titulo">Responsável</span>
+      </div>
+      <div class="bloco-body">
+        <div class="user-badge">
+          <div class="user-avatar" id="avatarLetra">?</div>
+          <div class="user-info">
+            <div class="user-name" id="nomeUsuario">–</div>
+            <div class="user-role">Filmmaker · Bet dá Sorte</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dados do conteúdo -->
+    <div class="bloco">
+      <div class="bloco-head">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3z"/><polyline points="15 3 15 9 21 9"/></svg>
+        <span class="bloco-titulo">Dados do Conteúdo</span>
+      </div>
+      <div class="bloco-body">
+
+        <div class="field">
+          <span class="field-label">Captação (Título)</span>
+          <input type="text" id="fCaptacao" class="input-field" placeholder="Ex: Santa Cruz x Ituano" autocomplete="off">
+          <div class="msg-erro" id="erroCaptacao"></div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Descrição</span>
+          <input type="text" id="fDescricao" class="input-field" placeholder="Ex: VIDEO 1, CORTE 1, VIDEO 2..." autocomplete="off">
+          <div class="msg-erro" id="erroDescricao"></div>
+        </div>
+
+        <div class="field">
+          <span class="field-label">Categoria</span>
+          <div class="radio-grid">
+            <div><input type="radio" id="cat-cob" name="categoria" value="COBERTURA" class="radio-opt"><label for="cat-cob" class="radio-label">Cobertura</label></div>
+            <div><input type="radio" id="cat-est" name="categoria" value="ESTÚDIO"   class="radio-opt"><label for="cat-est" class="radio-label">Estúdio</label></div>
+            <div><input type="radio" id="cat-rua" name="categoria" value="RUA"       class="radio-opt"><label for="cat-rua" class="radio-label">Rua</label></div>
+            <div><input type="radio" id="cat-con" name="categoria" value="CONTEÚDO"  class="radio-opt"><label for="cat-con" class="radio-label">Conteúdo</label></div>
+          </div>
+          <div class="msg-erro" id="erroCategoria"></div>
+        </div>
+
+        <div class="row-2">
+          <div class="field">
+            <span class="field-label">Data de Captação</span>
+            <input type="text" id="fDataCap" class="input-field" placeholder="DD/MM" maxlength="5" autocomplete="off">
+            <div class="msg-erro" id="erroDataCap"></div>
+          </div>
+          <div class="field">
+            <span class="field-label">Data Prevista</span>
+            <input type="text" id="fDataPrev" class="input-field" placeholder="DD/MM" maxlength="5" autocomplete="off">
+            <div class="msg-erro" id="erroDataPrev"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Arquivo / Link -->
+    <div class="bloco">
+      <div class="bloco-head">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        <span class="bloco-titulo">Vídeo</span>
+      </div>
+      <div class="bloco-body">
+
+        <!-- Upload direto (até 25MB) -->
+        <div class="field">
+          <span class="field-label">Upload direto (até 25 MB)</span>
+          <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+            <div class="upload-icon" id="uploadIcon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="upload-titulo" id="uploadTitulo">Arraste ou clique pra selecionar</div>
+            <div class="upload-sub" id="uploadSub">MP4, MOV, AVI · Máximo 25 MB</div>
+            <div class="progress-wrap" id="progressWrap">
+              <div class="progress-bar" id="progressBar"></div>
+            </div>
+          </div>
+          <input type="file" id="fileInput" accept="video/*,.mp4,.mov,.avi,.mkv">
+        </div>
+
+        <div class="ou-divider">OU</div>
+
+        <!-- Link externo (para arquivos maiores) -->
+        <div class="field">
+          <span class="field-label">Link do Drive (vídeos maiores)</span>
+          <input type="text" id="fLink" class="input-field" placeholder="https://drive.google.com/..." autocomplete="off">
+          <div class="msg-erro" id="erroLink"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /.scroll -->
+
+  <div class="footer">
+    <button class="btn-submit" id="btnEnviar" onclick="enviar()">Enviar para Drive + Planilha</button>
+  </div>
+
+</div><!-- /.app -->
+
+<div id="toast"></div>
+
+<script>
+  // ── Configurações ──────────────────────────────────
+  const CFG = {
+    // Cole aqui a URL do Apps Script dos Filmakers (deploy separado)
+    appsScript: 'https://script.google.com/macros/s/AKfycbxh4juQlNlmLEsF1zVkuZ3FOM6U89x-Ji3RHf5L2kLoQCGksHmoWl47a50_99TjeGM9mA/exec',
+    maxUploadMB: 25,
+  };
+
+  // ── Usuário logado ──────────────────────────────────
+  const usuario = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
+  document.getElementById('nomeUsuario').textContent = usuario;
+  document.getElementById('avatarLetra').textContent  = usuario.charAt(0).toUpperCase();
+
+  // ── Arquivo selecionado ──────────────────────────────
+  let arquivoSelecionado = null;
+
+  // Drag & drop
+  const uploadArea = document.getElementById('uploadArea');
+  uploadArea.addEventListener('dragover',  e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+  uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+  uploadArea.addEventListener('drop', e => {
+    e.preventDefault(); uploadArea.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) processarArquivo(e.dataTransfer.files[0]);
+  });
+
+  document.getElementById('fileInput').addEventListener('change', function() {
+    if (this.files[0]) processarArquivo(this.files[0]);
+  });
+
+  function processarArquivo(file) {
+    const maxBytes = CFG.maxUploadMB * 1024 * 1024;
+    const mb = (file.size / 1024 / 1024).toFixed(1);
+
+    if (file.size > maxBytes) {
+      uploadArea.classList.remove('tem-arquivo');
+      uploadArea.classList.add('erro-size');
+      document.getElementById('uploadTitulo').textContent = `Arquivo muito grande (${mb} MB)`;
+      document.getElementById('uploadSub').textContent = `Limite: ${CFG.maxUploadMB} MB · Use o campo de link abaixo`;
+      document.getElementById('uploadIcon').innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+      arquivoSelecionado = null;
+      document.getElementById('fileInput').value = '';
+      return;
+    }
+
+    arquivoSelecionado = file;
+    uploadArea.classList.remove('erro-size');
+    uploadArea.classList.add('tem-arquivo');
+    document.getElementById('uploadTitulo').textContent = file.name;
+    document.getElementById('uploadSub').textContent = `${mb} MB · Pronto para enviar`;
+    document.getElementById('uploadIcon').innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  }
+
+  // ── Formatação de datas ──────────────────────────────
+  function formatarData(el) {
+    let v = el.value.replace(/\D/g, '');
+    if (v.length >= 4) {
+      el.value = v.substring(0, 2) + '/' + v.substring(2, 4);
+    }
+  }
+  document.getElementById('fDataCap').addEventListener('blur',  () => formatarData(document.getElementById('fDataCap')));
+  document.getElementById('fDataPrev').addEventListener('blur', () => formatarData(document.getElementById('fDataPrev')));
+
+  function validarData(v) { return /^\d{2}\/\d{2}$/.test(v); }
+
+  // ── Toast ──────────────────────────────────────────
+  function toast(msg, tipo = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'show ' + tipo;
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.className = '', 3500);
+  }
+
+  // ── Limpar erros ──────────────────────────────────
+  document.querySelectorAll('.input-field').forEach(el => {
+    el.addEventListener('input', () => { el.classList.remove('erro'); });
+  });
+
+  // ── Converter arquivo em base64 ──────────────────────
+  function paraBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.onprogress = e => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 50); // 0-50%
+          atualizarProgresso(pct);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function atualizarProgresso(pct) {
+    document.getElementById('progressWrap').style.display = 'block';
+    document.getElementById('progressBar').style.width = pct + '%';
+  }
+
+  // ── Envio principal ──────────────────────────────────
+  async function enviar() {
+    // Coleta e valida
+    const captacao  = document.getElementById('fCaptacao').value.trim();
+    const descricao = document.getElementById('fDescricao').value.trim();
+    const categoria = document.querySelector('input[name="categoria"]:checked');
+    const dataCap   = document.getElementById('fDataCap').value.trim();
+    const dataPrev  = document.getElementById('fDataPrev').value.trim();
+    const linkExt   = document.getElementById('fLink').value.trim();
+
+    let ok = true;
+    const err = (id, msg) => { document.getElementById(id).textContent = msg; ok = false; };
+    const cls = (field) => { document.getElementById('f'+field) && document.getElementById('f'+field).classList.add('erro'); };
+
+    if (!captacao)             { err('erroCaptacao',  'Preencha a captação'); cls('Captacao'); }
+    if (!descricao)            { err('erroDescricao', 'Preencha a descrição'); cls('Descricao'); }
+    if (!categoria)            { err('erroCategoria', 'Selecione a categoria'); ok = false; }
+    if (!validarData(dataCap)) { err('erroDataCap',   'Data inválida (DD/MM)'); cls('DataCap'); }
+    if (!validarData(dataPrev)){ err('erroDataPrev',  'Data inválida (DD/MM)'); cls('DataPrev'); }
+    if (!arquivoSelecionado && !linkExt) {
+      err('erroLink', 'Anexe um arquivo ou cole o link do Drive');
+      ok = false;
+    }
+
+    if (!ok) { toast('Preencha todos os campos obrigatórios', 'erro'); return; }
+
+    const btn = document.getElementById('btnEnviar');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    try {
+      let base64 = null;
+      let nomeArq = null;
+      let tipoArq = null;
+
+      if (arquivoSelecionado) {
+        toast('Preparando arquivo...', '');
+        base64  = await paraBase64(arquivoSelecionado);
+        nomeArq = arquivoSelecionado.name;
+        tipoArq = arquivoSelecionado.type || 'video/mp4';
+        atualizarProgresso(60);
+        toast('Enviando para o Drive...', '');
+      }
+
+      const payload = {
+        responsavel: usuario,
+        captacao:    captacao.toUpperCase(),
+        descricao:   descricao.toUpperCase(),
+        categoria:   categoria.value,
+        dataCaptacao: dataCap,
+        dataPrevista: dataPrev,
+        linkExterno: linkExt,
+        arquivo: base64 ? { nome: nomeArq, tipo: tipoArq, base64 } : null,
+      };
+
+      const resp = await fetch(CFG.appsScript, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+        mode:    'no-cors',
+      });
+
+      atualizarProgresso(100);
+      toast('Enviado com sucesso! ✓', 'ok');
+      setTimeout(() => limparFormulario(), 2000);
+
+    } catch(e) {
+      toast('Erro no envio: ' + e.message, 'erro');
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enviar para Drive + Planilha';
+    }
+  }
+
+  function limparFormulario() {
+    document.getElementById('fCaptacao').value  = '';
+    document.getElementById('fDescricao').value = '';
+    document.getElementById('fDataCap').value   = '';
+    document.getElementById('fDataPrev').value  = '';
+    document.getElementById('fLink').value      = '';
+    document.querySelectorAll('input[name="categoria"]').forEach(r => r.checked = false);
+    arquivoSelecionado = null;
+    document.getElementById('fileInput').value = '';
+    uploadArea.className = 'upload-area';
+    document.getElementById('uploadTitulo').textContent = 'Arraste ou clique pra selecionar';
+    document.getElementById('uploadSub').textContent    = 'MP4, MOV, AVI · Máximo 25 MB';
+    document.getElementById('uploadIcon').innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+    document.getElementById('progressWrap').style.display = 'none';
+    document.getElementById('progressBar').style.width = '0%';
+    document.querySelectorAll('.msg-erro').forEach(e => e.textContent = '');
+  }
+</script>
+</body>
+</html>
