@@ -172,6 +172,43 @@
       height: 100%; background: var(--accent); border-radius: 4px;
       transition: width 0.3s; width: 0%;
     }
+    .progress-stats {
+      display: none; justify-content: space-between;
+      font-size: 10px; color: var(--muted); font-weight: 600; margin-top: 6px;
+    }
+
+    /* Botão remover arquivo selecionado */
+    .btn-remover-arq {
+      position: absolute; top: 8px; right: 8px;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: rgba(224,48,48,0.15); border: 1px solid var(--red);
+      color: var(--red); display: none;
+      align-items: center; justify-content: center; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .upload-area.tem-arquivo .btn-remover-arq { display: flex; }
+    .btn-remover-arq:hover { background: var(--red); color: #fff; }
+
+    /* Banner informativo */
+    .info-banner {
+      display: flex; gap: 10px; padding: 12px;
+      background: rgba(255,183,0,0.06); border: 1px solid rgba(255,183,0,0.2);
+      border-radius: var(--radius); font-size: 11px; color: var(--muted); line-height: 1.5;
+    }
+    .info-banner svg { flex-shrink: 0; color: var(--accent); margin-top: 1px; }
+    .info-banner strong { color: var(--accent); }
+
+    /* Botão cancelar upload */
+    .btn-cancelar {
+      display: none; width: 100%; padding: 10px;
+      background: transparent; border: 1.5px solid var(--red);
+      color: var(--red); border-radius: var(--radius);
+      font-family: 'Archivo Black', sans-serif; font-size: 11px;
+      letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+      margin-top: 8px; transition: all 0.15s;
+    }
+    .btn-cancelar:hover { background: rgba(224,48,48,0.1); }
+    .btn-cancelar.show { display: block; }
 
     /* ── Separador OU ── */
     .ou-divider {
@@ -253,6 +290,12 @@
 
   <div class="scroll">
 
+    <!-- Aviso primeira vez -->
+    <div class="info-banner">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div><strong>Primeira vez enviando um vídeo?</strong> Vai aparecer uma tela do Google pedindo autorização pra acessar o Drive. É só clicar em "Permitir" — só acontece uma vez.</div>
+    </div>
+
     <!-- Responsável -->
     <div class="bloco">
       <div class="bloco-head">
@@ -329,16 +372,24 @@
         <div class="field">
           <span class="field-label">Upload direto (até 500 MB)</span>
           <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+            <button type="button" class="btn-remover-arq" id="btnRemoverArq" onclick="event.stopPropagation(); removerArquivo();" title="Remover arquivo">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
             <div class="upload-icon" id="uploadIcon">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </div>
             <div class="upload-titulo" id="uploadTitulo">Arraste ou clique pra selecionar</div>
-            <div class="upload-sub" id="uploadSub">MP4, MOV, AVI · Máximo 500 MB</div>
+            <div class="upload-sub" id="uploadSub">MP4, MOV, AVI, MKV · Máximo 500 MB</div>
             <div class="progress-wrap" id="progressWrap">
               <div class="progress-bar" id="progressBar"></div>
             </div>
+            <div class="progress-stats" id="progressStats">
+              <span id="statsEnviado">0 MB / 0 MB</span>
+              <span id="statsVelocidade">–</span>
+            </div>
           </div>
-          <input type="file" id="fileInput" accept="video/*,.mp4,.mov,.avi,.mkv">
+          <input type="file" id="fileInput" accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,.mp4,.mov,.avi,.mkv">
+          <button type="button" class="btn-cancelar" id="btnCancelar" onclick="cancelarUpload()">Cancelar Envio</button>
         </div>
 
         <div class="ou-divider">OU</div>
@@ -375,6 +426,8 @@
 
   let accessToken = null;
   let tokenClient = null;
+  let uploadAbortController = null;
+  let uploadCancelado = false;
 
   // ── Usuário logado ──────────────────────────────────
   const usuario = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
@@ -418,6 +471,23 @@
     document.getElementById('uploadTitulo').textContent = file.name;
     document.getElementById('uploadSub').textContent = `${mb} MB · Pronto para enviar`;
     document.getElementById('uploadIcon').innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  }
+
+  function removerArquivo() {
+    arquivoSelecionado = null;
+    document.getElementById('fileInput').value = '';
+    uploadArea.className = 'upload-area';
+    document.getElementById('uploadTitulo').textContent = 'Arraste ou clique pra selecionar';
+    document.getElementById('uploadSub').textContent    = 'MP4, MOV, AVI, MKV · Máximo 500 MB';
+    document.getElementById('uploadIcon').innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+    document.getElementById('progressWrap').style.display  = 'none';
+    document.getElementById('progressStats').style.display = 'none';
+  }
+
+  function cancelarUpload() {
+    uploadCancelado = true;
+    if (uploadAbortController) uploadAbortController.abort();
+    toast('Upload cancelado', 'erro');
   }
 
   // ── Formatação de datas ──────────────────────────────
@@ -472,13 +542,16 @@
   }
 
   async function uploadParaDrive(file, nomeCustom) {
+    uploadCancelado = false;
+    uploadAbortController = new AbortController();
+
     // 1. Inicia sessão de upload resumível
-    // Nome = CAPTACAO DESCRICAO.extensao
     const ext  = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
     const nome = nomeCustom ? (nomeCustom + ext) : file.name;
     const meta = JSON.stringify({ name: nome, parents: [CFG.folderId] });
+
     const initResp = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
       {
         method: 'POST',
         headers: {
@@ -486,58 +559,112 @@
           'Content-Type': 'application/json; charset=UTF-8',
         },
         body: meta,
+        signal: uploadAbortController.signal,
       }
     );
     if (!initResp.ok) {
       const errText = await initResp.text();
-      throw new Error('Falha ao iniciar upload (' + initResp.status + '): ' + errText);
+      console.error('[Drive] Falha ao iniciar sessão:', initResp.status, errText);
+      throw new Error('Falha ao iniciar upload (' + initResp.status + '). Verifique se a pasta do Drive está acessível.');
     }
     const uploadUrl = initResp.headers.get('Location');
-    if (!uploadUrl) throw new Error('URL de upload não retornada pelo Drive. Verifique as permissões da pasta.');
-    console.log('[Drive] Sessão de upload iniciada:', uploadUrl.substring(0, 80) + '...');
+    if (!uploadUrl) throw new Error('URL de upload não retornada pelo Drive.');
+    console.log('[Drive] Sessão iniciada OK');
 
-    // 2. Envia em chunks de 5MB com progresso
+    // 2. Envia em chunks com retry automático + velocidade/ETA
     let offset = 0;
+    const inicioUpload = Date.now();
+    document.getElementById('progressStats').style.display = 'flex';
+    document.getElementById('btnCancelar').classList.add('show');
+
     while (offset < file.size) {
+      if (uploadCancelado) throw new Error('Upload cancelado pelo usuário');
+
       const end   = Math.min(offset + CFG.chunkSize, file.size);
       const chunk = file.slice(offset, end);
 
-      const chunkResp = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Range': `bytes ${offset}-${end - 1}/${file.size}`,
-          'Content-Type': file.type || 'video/mp4',
-        },
-        body: chunk,
-      });
+      let chunkResp = null;
+      let tentativas = 0;
+      const maxTentativas = 3;
+
+      // Retry automático em caso de falha de rede
+      while (tentativas < maxTentativas) {
+        try {
+          chunkResp = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Range': `bytes ${offset}-${end - 1}/${file.size}`,
+              'Content-Type': file.type || 'video/mp4',
+            },
+            body: chunk,
+            signal: uploadAbortController.signal,
+          });
+          break; // sucesso, sai do retry
+        } catch(networkErr) {
+          if (networkErr.name === 'AbortError') throw new Error('Upload cancelado pelo usuário');
+          tentativas++;
+          if (tentativas >= maxTentativas) throw new Error('Falha de conexão após ' + maxTentativas + ' tentativas: ' + networkErr.message);
+          console.warn('[Drive] Retry chunk (' + tentativas + '/' + maxTentativas + ')...');
+          await new Promise(r => setTimeout(r, 1500 * tentativas)); // backoff progressivo
+        }
+      }
 
       offset = end;
-      const pct = Math.round((offset / file.size) * 100);
-      atualizarProgresso(pct);
+
+      // Progresso + velocidade + ETA
+      const decorridoSeg = (Date.now() - inicioUpload) / 1000;
+      const velocidadeMBs = decorridoSeg > 0 ? (offset / 1024 / 1024) / decorridoSeg : 0;
+      const restanteMB  = (file.size - offset) / 1024 / 1024;
+      const etaSeg = velocidadeMBs > 0 ? Math.round(restanteMB / velocidadeMBs) : 0;
+      atualizarProgresso(
+        Math.round((offset / file.size) * 100),
+        offset, file.size, velocidadeMBs, etaSeg
+      );
 
       if (chunkResp.status === 200 || chunkResp.status === 201) {
         const result = await chunkResp.json();
         // Torna o arquivo visível a quem tiver o link
-        await fetch(`https://www.googleapis.com/drive/v3/files/${result.id}/permissions`, {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'reader', type: 'anyone' }),
-        });
+        try {
+          await fetch(`https://www.googleapis.com/drive/v3/files/${result.id}/permissions?supportsAllDrives=true`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+          });
+        } catch(permErr) { console.warn('[Drive] Permissão pública falhou (não crítico):', permErr.message); }
+
+        document.getElementById('btnCancelar').classList.remove('show');
         return `https://drive.google.com/file/d/${result.id}/view`;
       }
 
       if (!chunkResp.ok && chunkResp.status !== 308) {
         const errBody = await chunkResp.text().catch(() => '');
-        throw new Error('Erro no upload (chunk ' + offset + ', status ' + chunkResp.status + '): ' + errBody);
+        document.getElementById('btnCancelar').classList.remove('show');
+        throw new Error('Erro no upload (status ' + chunkResp.status + '): ' + (errBody || 'sem detalhes'));
       }
     }
+    document.getElementById('btnCancelar').classList.remove('show');
     throw new Error('Upload incompleto');
   }
 
-  function atualizarProgresso(pct) {
+    function atualizarProgresso(pct, enviadoBytes, totalBytes, velocidadeMBs, etaSeg) {
     document.getElementById('progressWrap').style.display = 'block';
     document.getElementById('progressBar').style.width = pct + '%';
     document.getElementById('uploadSub').textContent = pct + '% enviado...';
+
+    if (enviadoBytes !== undefined) {
+      const enviadoMB = (enviadoBytes / 1024 / 1024).toFixed(1);
+      const totalMB   = (totalBytes   / 1024 / 1024).toFixed(1);
+      document.getElementById('statsEnviado').textContent = `${enviadoMB} MB / ${totalMB} MB`;
+
+      let etaTxt = '–';
+      if (etaSeg > 0) {
+        etaTxt = etaSeg < 60 ? `${etaSeg}s restantes` : `${Math.ceil(etaSeg/60)}min restantes`;
+      } else if (pct >= 100) {
+        etaTxt = 'Finalizando...';
+      }
+      const velTxt = velocidadeMBs > 0 ? `${velocidadeMBs.toFixed(1)} MB/s` : '';
+      document.getElementById('statsVelocidade').textContent = velTxt ? `${velTxt} · ${etaTxt}` : etaTxt;
+    }
   }
 
   // ── Envio principal ──────────────────────────────────
@@ -609,11 +736,21 @@
       setTimeout(() => limparFormulario(), 2000);
 
     } catch(e) {
-      toast('Erro no envio: ' + e.message, 'erro');
-      console.error(e);
+      console.error('[Filmakers] Erro:', e);
+      let msgErro = e.message;
+      if (e.message.includes('cancelado')) {
+        msgErro = 'Envio cancelado';
+      } else if (e.message.includes('popup_closed') || e.message.includes('access_denied')) {
+        msgErro = 'Autorização do Google foi cancelada. Tente novamente.';
+      } else if (e.message.includes('Failed to fetch')) {
+        msgErro = 'Falha de conexão. Verifique sua internet e tente novamente.';
+      }
+      toast('Erro: ' + msgErro, 'erro');
+      // Não limpa o formulário — usuário não perde o que já preencheu
     } finally {
       btn.disabled = false;
       btn.textContent = 'Enviar para Drive + Planilha';
+      document.getElementById('btnCancelar').classList.remove('show');
     }
   }
 
@@ -630,9 +767,11 @@
     document.getElementById('uploadTitulo').textContent = 'Arraste ou clique pra selecionar';
     document.getElementById('uploadSub').textContent    = 'MP4, MOV, AVI · Máximo 500 MB';
     document.getElementById('uploadIcon').innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
-    document.getElementById('progressWrap').style.display = 'none';
+    document.getElementById('progressWrap').style.display  = 'none';
+    document.getElementById('progressStats').style.display = 'none';
     document.getElementById('progressBar').style.width = '0%';
     document.querySelectorAll('.msg-erro').forEach(e => e.textContent = '');
+    document.getElementById('btnCancelar').classList.remove('show');
   }
 </script>
 </body>
