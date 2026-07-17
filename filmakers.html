@@ -451,7 +451,7 @@
     if (tokenClient) return;
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CFG.clientId,
-      scope: 'https://www.googleapis.com/auth/drive.file',
+      scope: 'https://www.googleapis.com/auth/drive',
       callback: () => {}, // preenchido na hora do upload
     });
   }
@@ -465,7 +465,8 @@
         resolve(accessToken);
       };
       // Se já tem token válido, usa direto
-      if (accessToken) return resolve(accessToken);
+      // Sempre pede token (garante escopo correto)
+    // if (accessToken) return resolve(accessToken);
       tokenClient.requestAccessToken({ prompt: 'consent' });
     });
   }
@@ -482,15 +483,18 @@
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + accessToken,
-          'Content-Type': 'application/json',
-          'X-Upload-Content-Type': file.type || 'video/mp4',
-          'X-Upload-Content-Length': file.size,
+          'Content-Type': 'application/json; charset=UTF-8',
         },
         body: meta,
       }
     );
-    if (!initResp.ok) throw new Error('Falha ao iniciar upload no Drive');
+    if (!initResp.ok) {
+      const errText = await initResp.text();
+      throw new Error('Falha ao iniciar upload (' + initResp.status + '): ' + errText);
+    }
     const uploadUrl = initResp.headers.get('Location');
+    if (!uploadUrl) throw new Error('URL de upload não retornada pelo Drive. Verifique as permissões da pasta.');
+    console.log('[Drive] Sessão de upload iniciada:', uploadUrl.substring(0, 80) + '...');
 
     // 2. Envia em chunks de 5MB com progresso
     let offset = 0;
@@ -523,7 +527,8 @@
       }
 
       if (!chunkResp.ok && chunkResp.status !== 308) {
-        throw new Error('Erro no upload (chunk ' + offset + '): ' + chunkResp.status);
+        const errBody = await chunkResp.text().catch(() => '');
+        throw new Error('Erro no upload (chunk ' + offset + ', status ' + chunkResp.status + '): ' + errBody);
       }
     }
     throw new Error('Upload incompleto');
