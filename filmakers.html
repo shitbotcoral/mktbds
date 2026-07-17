@@ -9,6 +9,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>FILMAKERS BDS</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo+Black&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
       --bg:      #02122c;
@@ -326,13 +327,13 @@
 
         <!-- Upload direto (até 25MB) -->
         <div class="field">
-          <span class="field-label">Upload direto (até 25 MB)</span>
+          <span class="field-label">Upload direto (até 500 MB)</span>
           <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
             <div class="upload-icon" id="uploadIcon">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </div>
             <div class="upload-titulo" id="uploadTitulo">Arraste ou clique pra selecionar</div>
-            <div class="upload-sub" id="uploadSub">MP4, MOV, AVI · Máximo 25 MB</div>
+            <div class="upload-sub" id="uploadSub">MP4, MOV, AVI · Máximo 500 MB</div>
             <div class="progress-wrap" id="progressWrap">
               <div class="progress-bar" id="progressBar"></div>
             </div>
@@ -365,10 +366,15 @@
 <script>
   // ── Configurações ──────────────────────────────────
   const CFG = {
-    // Cole aqui a URL do Apps Script dos Filmakers (deploy separado)
-    appsScript: 'https://script.google.com/macros/s/AKfycbxh4juQlNlmLEsF1zVkuZ3FOM6U89x-Ji3RHf5L2kLoQCGksHmoWl47a50_99TjeGM9mA/exec',
-    maxUploadMB: 25,
+    appsScript:  'https://script.google.com/macros/s/AKfycbxh4juQlNlmLEsF1zVkuZ3FOM6U89x-Ji3RHf5L2kLoQCGksHmoWl47a50_99TjeGM9mA/exec',
+    clientId:    '127835078138-5vfbub3mnvl372oo8vuuujs4uu82rsor.apps.googleusercontent.com',
+    folderId:    '1-i1cd58w6mMHhEy2hKq5Zk19KDRBU9f-',
+    maxUploadMB: 500,
+    chunkSize:   5 * 1024 * 1024, // 5MB por chunk
   };
+
+  let accessToken = null;
+  let tokenClient = null;
 
   // ── Usuário logado ──────────────────────────────────
   const usuario = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
@@ -392,7 +398,7 @@
   });
 
   function processarArquivo(file) {
-    const maxBytes = CFG.maxUploadMB * 1024 * 1024;
+    const maxBytes = CFG.maxUploadMB * 1024 * 1024; // 500MB
     const mb = (file.size / 1024 / 1024).toFixed(1);
 
     if (file.size > maxBytes) {
@@ -439,25 +445,91 @@
     el.addEventListener('input', () => { el.classList.remove('erro'); });
   });
 
-  // ── Converter arquivo em base64 ──────────────────────
-  function paraBase64(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload  = e => resolve(e.target.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.onprogress = e => {
-        if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 50); // 0-50%
-          atualizarProgresso(pct);
-        }
-      };
-      reader.readAsDataURL(file);
+  // ── Google OAuth + Upload direto ao Drive ────────────
+
+  function iniciarTokenClient() {
+    if (tokenClient) return;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CFG.clientId,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: () => {}, // preenchido na hora do upload
     });
+  }
+
+  function obterToken() {
+    return new Promise((resolve, reject) => {
+      iniciarTokenClient();
+      tokenClient.callback = (resp) => {
+        if (resp.error) return reject(new Error(resp.error));
+        accessToken = resp.access_token;
+        resolve(accessToken);
+      };
+      // Se já tem token válido, usa direto
+      if (accessToken) return resolve(accessToken);
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    });
+  }
+
+  async function uploadParaDrive(file) {
+    // 1. Inicia sessão de upload resumível
+    const meta = JSON.stringify({ name: file.name, parents: [CFG.folderId] });
+    const initResp = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + accessToken,
+          'Content-Type': 'application/json',
+          'X-Upload-Content-Type': file.type || 'video/mp4',
+          'X-Upload-Content-Length': file.size,
+        },
+        body: meta,
+      }
+    );
+    if (!initResp.ok) throw new Error('Falha ao iniciar upload no Drive');
+    const uploadUrl = initResp.headers.get('Location');
+
+    // 2. Envia em chunks de 5MB com progresso
+    let offset = 0;
+    while (offset < file.size) {
+      const end   = Math.min(offset + CFG.chunkSize, file.size);
+      const chunk = file.slice(offset, end);
+
+      const chunkResp = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Range': `bytes ${offset}-${end - 1}/${file.size}`,
+          'Content-Type': file.type || 'video/mp4',
+        },
+        body: chunk,
+      });
+
+      offset = end;
+      const pct = Math.round((offset / file.size) * 100);
+      atualizarProgresso(pct);
+
+      if (chunkResp.status === 200 || chunkResp.status === 201) {
+        const result = await chunkResp.json();
+        // Torna o arquivo visível a quem tiver o link
+        await fetch(`https://www.googleapis.com/drive/v3/files/${result.id}/permissions`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+        });
+        return `https://drive.google.com/file/d/${result.id}/view`;
+      }
+
+      if (!chunkResp.ok && chunkResp.status !== 308) {
+        throw new Error('Erro no upload (chunk ' + offset + '): ' + chunkResp.status);
+      }
+    }
+    throw new Error('Upload incompleto');
   }
 
   function atualizarProgresso(pct) {
     document.getElementById('progressWrap').style.display = 'block';
     document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('uploadSub').textContent = pct + '% enviado...';
   }
 
   // ── Envio principal ──────────────────────────────────
@@ -491,31 +563,28 @@
     btn.textContent = 'Enviando...';
 
     try {
-      let base64 = null;
-      let nomeArq = null;
-      let tipoArq = null;
+      let driveLink = linkExt;
 
       if (arquivoSelecionado) {
-        toast('Preparando arquivo...', '');
-        base64  = await paraBase64(arquivoSelecionado);
-        nomeArq = arquivoSelecionado.name;
-        tipoArq = arquivoSelecionado.type || 'video/mp4';
-        atualizarProgresso(60);
+        toast('Autenticando com o Google...', '');
+        await obterToken();
         toast('Enviando para o Drive...', '');
+        driveLink = await uploadParaDrive(arquivoSelecionado);
+        toast('Upload concluído! Salvando na planilha...', '');
       }
 
       const payload = {
-        responsavel: usuario,
-        captacao:    captacao.toUpperCase(),
-        descricao:   descricao.toUpperCase(),
-        categoria:   categoria.value,
+        responsavel:  usuario,
+        captacao:     captacao.toUpperCase(),
+        descricao:    descricao.toUpperCase(),
+        categoria:    categoria.value,
         dataCaptacao: dataCap,
         dataPrevista: dataPrev,
-        linkExterno: linkExt,
-        arquivo: base64 ? { nome: nomeArq, tipo: tipoArq, base64 } : null,
+        linkExterno:  driveLink,
+        arquivo:      null, // arquivo já subiu direto pro Drive
       };
 
-      const resp = await fetch(CFG.appsScript, {
+      await fetch(CFG.appsScript, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
@@ -546,7 +615,7 @@
     document.getElementById('fileInput').value = '';
     uploadArea.className = 'upload-area';
     document.getElementById('uploadTitulo').textContent = 'Arraste ou clique pra selecionar';
-    document.getElementById('uploadSub').textContent    = 'MP4, MOV, AVI · Máximo 25 MB';
+    document.getElementById('uploadSub').textContent    = 'MP4, MOV, AVI · Máximo 500 MB';
     document.getElementById('uploadIcon').innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
     document.getElementById('progressWrap').style.display = 'none';
     document.getElementById('progressBar').style.width = '0%';
