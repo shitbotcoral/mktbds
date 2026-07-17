@@ -470,9 +470,12 @@
     });
   }
 
-  async function uploadParaDrive(file) {
+  async function uploadParaDrive(file, nomeCustom) {
     // 1. Inicia sessão de upload resumível
-    const meta = JSON.stringify({ name: file.name, parents: [CFG.folderId] });
+    // Nome = CAPTACAO DESCRICAO.extensao
+    const ext  = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+    const nome = nomeCustom ? (nomeCustom + ext) : file.name;
+    const meta = JSON.stringify({ name: nome, parents: [CFG.folderId] });
     const initResp = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
       {
@@ -569,7 +572,8 @@
         toast('Autenticando com o Google...', '');
         await obterToken();
         toast('Enviando para o Drive...', '');
-        driveLink = await uploadParaDrive(arquivoSelecionado);
+        const nomeArquivo = captacao + ' ' + descricao;
+        driveLink = await uploadParaDrive(arquivoSelecionado, nomeArquivo);
         toast('Upload concluído! Salvando na planilha...', '');
       }
 
@@ -584,12 +588,16 @@
         arquivo:      null, // arquivo já subiu direto pro Drive
       };
 
-      await fetch(CFG.appsScript, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-        mode:    'no-cors',
-      });
+      // Apps Script com "Qualquer pessoa" aceita CORS — sem no-cors
+      try {
+        await fetch(CFG.appsScript, {
+          method:  'POST',
+          headers: { 'Content-Type': 'text/plain' }, // text/plain passa CORS sem preflight
+          body:    JSON.stringify(payload),
+        });
+      } catch(e) {
+        console.warn('Planilha: fetch falhou mas pode ter funcionado:', e.message);
+      }
 
       atualizarProgresso(100);
       toast('Enviado com sucesso! ✓', 'ok');
