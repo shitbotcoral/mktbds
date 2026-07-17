@@ -419,7 +419,7 @@
   const CFG = {
     appsScript:  'https://script.google.com/macros/s/AKfycbxh4juQlNlmLEsF1zVkuZ3FOM6U89x-Ji3RHf5L2kLoQCGksHmoWl47a50_99TjeGM9mA/exec',
     clientId:    '127835078138-5vfbub3mnvl372oo8vuuujs4uu82rsor.apps.googleusercontent.com',
-    folderId:    '1-i1cd58w6mMHhEy2hKq5Zk19KDRBU9f-',
+    folderId:    '1gNGU8Kc9cbEdzTT9KhYKx6gcYuWNTeu8',
     maxUploadMB: 500,
     chunkSize:   5 * 1024 * 1024, // 5MB por chunk
   };
@@ -541,14 +541,45 @@
     });
   }
 
+  // Verifica pasta e retorna driveId (necessário para Shared Drives corporativos)
+  async function verificarPasta() {
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${CFG.folderId}?fields=id,name,driveId,capabilities&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+      { headers: { 'Authorization': 'Bearer ' + accessToken } }
+    );
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      console.error('[Drive] Pasta inacessível:', resp.status, body);
+      if (resp.status === 404) {
+        throw new Error('Pasta do Drive não encontrada ou bloqueada pelo administrador da empresa. Contate o admin do Google Workspace.');
+      }
+      throw new Error('Não foi possível acessar a pasta (' + resp.status + '). O administrador do Google Workspace pode estar bloqueando o app.');
+    }
+    const info = await resp.json();
+    console.log('[Drive] Pasta OK:', info.name, '| driveId:', info.driveId, '| pode escrever:', info.capabilities?.canAddChildren);
+    if (info.capabilities && info.capabilities.canAddChildren === false) {
+      throw new Error('Sem permissão para adicionar arquivos nesta pasta. Verifique seu acesso.');
+    }
+    return info; // retorna info com driveId
+  }
+
   async function uploadParaDrive(file, nomeCustom) {
     uploadCancelado = false;
     uploadAbortController = new AbortController();
 
+    // 0. Verifica acesso à pasta primeiro e pega driveId
+    toast('Verificando pasta do Drive...', '');
+    const pastaInfo = await verificarPasta();
+    const driveId   = pastaInfo.driveId || null;
+    console.log('[Drive] driveId detectado:', driveId);
+
     // 1. Inicia sessão de upload resumível
     const ext  = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
     const nome = nomeCustom ? (nomeCustom + ext) : file.name;
-    const meta = JSON.stringify({ name: nome, parents: [CFG.folderId] });
+    // Inclui driveId no metadata quando é Shared Drive corporativo
+    const metaObj = { name: nome, parents: [CFG.folderId] };
+    if (driveId) metaObj.driveId = driveId;
+    const meta = JSON.stringify(metaObj);
 
     const initResp = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
