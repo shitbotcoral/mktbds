@@ -460,6 +460,11 @@
         <textarea id="fDirecionamento" class="input-field" rows="3" placeholder="Direcionamento do post..."></textarea>
       </div>
 
+      <div>
+        <span class="field-label">Link (opcional)</span>
+        <input type="url" id="fLink" class="input-field" placeholder="https://..." autocomplete="off" style="font-size:12px;">
+      </div>
+
       <div class="btns-envio">
         <button class="btn-envio ambos" id="btnAmbos" onclick="enviar('ambos')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -656,6 +661,7 @@
     const titulo    = document.getElementById('fTitulo').value.trim().toUpperCase();
     const assunto   = document.getElementById('fAssunto').value.trim().toUpperCase();
     const dir       = document.getElementById('fDirecionamento').value.trim().toUpperCase();
+    const link      = document.getElementById('fLink').value.trim();
     const isPromo   = document.getElementById('fPromo').checked;
 
     if (!canal)     { toast('Selecione o canal!', 'erro'); return; }
@@ -666,7 +672,7 @@
     if (!assunto)   { toast('Preencha o assunto!', 'erro'); return; }
 
     const criadoPor = sessionStorage.getItem('bdsUsuario') || 'desconhecido';
-    const post = { canal: canal.value, data, hora, titulo, assunto, categoria: categoria.value, direcionamento: dir, isPromo, trelloCardId: null, criadoPor };
+    const post = { canal: canal.value, data, hora, titulo, assunto, categoria: categoria.value, direcionamento: dir, link, isPromo, trelloCardId: null, criadoPor };
 
     // Desabilita todos os botões
     ['btnAmbos','btnPlanilha','btnTrello'].forEach(id => { const b = document.getElementById(id); if(b){ b.disabled = true; } });
@@ -707,7 +713,8 @@
       const assuntoLabel = post.assunto + (post.isPromo ? ' PROMO' : '');
       const nome = `${post.canal} | ${assuntoLabel} — ${post.titulo} [${post.data} ${post.hora}]`;
       const usuario = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
-      const desc = `${usuario}\n\n**CANAL:** ${post.canal}\n**AGENDAMENTO:** ${post.data} ÀS ${post.hora}\n**CATEGORIA:** ${post.categoria}\n**ASSUNTO:** ${assuntoLabel}\n\n**DIRECIONAMENTO:**\n${post.direcionamento || 'Nenhum.'}`;
+      const linkTrello = post.link ? `\n\n**LINK:** [${post.link}](${post.link})` : '';
+      const desc = `${usuario}\n\n**CANAL:** ${post.canal}\n**AGENDAMENTO:** ${post.data} ÀS ${post.hora}\n**CATEGORIA:** ${post.categoria}\n**ASSUNTO:** ${assuntoLabel}\n\n**DIRECIONAMENTO:**\n${post.direcionamento || 'Nenhum.'}${linkTrello}`;
 
       const due = new Date(); due.setHours(20,0,0,0);
 
@@ -744,7 +751,7 @@
   function limparForm() {
     document.querySelectorAll('input[name="canal"]').forEach(r => r.checked = false);
     document.querySelectorAll('input[name="categoria"]').forEach(r => r.checked = false);
-    ['fData','fHora','fTitulo','fAssunto','fDirecionamento'].forEach(id => {
+    ['fData','fHora','fTitulo','fAssunto','fDirecionamento','fLink'].forEach(id => {
       const el = document.getElementById(id);
       el.value = ''; el.classList.remove('erro');
     });
@@ -892,7 +899,8 @@
         const assuntoLabel = postAtualizado.assunto + (postAtualizado.isPromo ? ' PROMO' : '');
         const nomeCard = `${postAtualizado.canal} | ${assuntoLabel} — ${postAtualizado.titulo} [${postAtualizado.data} ${postAtualizado.hora}]`;
         const usuarioEdit = sessionStorage.getItem('bdsUsuario') || 'Desconhecido';
-        const desc = `${usuarioEdit}\n\n**CANAL:** ${postAtualizado.canal}\n**AGENDAMENTO:** ${postAtualizado.data} ÀS ${postAtualizado.hora}\n**CATEGORIA:** ${postAtualizado.categoria}\n**ASSUNTO:** ${assuntoLabel}\n\n**DIRECIONAMENTO:**\n${postAtualizado.direcionamento || 'Nenhum.'}`;
+        const linkTrelloEdit = postAtualizado.link ? `\n\n**LINK:** [${postAtualizado.link}](${postAtualizado.link})` : '';
+        const desc = `${usuarioEdit}\n\n**CANAL:** ${postAtualizado.canal}\n**AGENDAMENTO:** ${postAtualizado.data} ÀS ${postAtualizado.hora}\n**CATEGORIA:** ${postAtualizado.categoria}\n**ASSUNTO:** ${assuntoLabel}\n\n**DIRECIONAMENTO:**\n${postAtualizado.direcionamento || 'Nenhum.'}${linkTrelloEdit}`;
 
         await fetch(`https://api.trello.com/1/cards/${postAtualizado.trelloCardId}?key=${CFG.trelloKey}&token=${CFG.trelloToken}`, {
           method: 'PUT',
