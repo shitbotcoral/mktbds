@@ -580,14 +580,12 @@
 
   /* ── Layouts predefinidos ── */
   const LAYOUTS = {
-    semtag:  { x:110, y:1140, size:85,  height:80, align:'left',   maxWidth:880, file:'img/LAYOUTS/1 SEM TAG.png',         nome:'Sem Tag' },
-    tagmaior:{ x:110, y:1140, size:85,  height:80, align:'left',   maxWidth:880, file:'img/LAYOUTS/2 TAG MAIOR.png',       nome:'Tag Maior' },
-    tagmenor:{ x:110, y:1060, size:75,  height:70, align:'left',   maxWidth:880, file:'img/LAYOUTS/3 TAG MENOR.png',       nome:'Tag Menor' },
-    meio:    { x:110, y:795,  size:80,  height:75, align:'left',   maxWidth:880, file:'img/LAYOUTS/4 DIVIDIDO NO MEIO.png',nome:'Dividido' }
+    taggrande: { x:90, y:914,  size:85, height:80, align:'left', maxWidth:880, file:'img/LAYOUTS/STV_TAG_GRANDE.png', nome:'Tag Grande' },
+    tagpequena:{ x:90, y:1034, size:70, height:65, align:'left', maxWidth:880, file:'img/LAYOUTS/STV_TAG_PEQUENA.png',nome:'Tag Pequena'},
   };
 
   const CW = 1080, CH = 1440;
-  let layoutAtual = 'semtag', alinhamento = 'left';
+  let layoutAtual = 'taggrande', alinhamento = 'left';
   let imgBgObj = null, overlayCache = {};
   let cropX = 0, cropY = 0, cropScale = 1, baseScale = 1;
   let isDragging = false, dragSX = 0, dragSY = 0, dragOX = 0, dragOY = 0;
