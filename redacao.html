@@ -1103,18 +1103,25 @@
   function getOverlay(file) {
     return new Promise((res, rej) => {
       if (overlayCache[file]) return res(overlayCache[file]);
-      // Tenta com crossOrigin primeiro (funciona em servidor — evita tainted canvas)
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => { overlayCache[file] = img; res(img); };
-      img.onerror = () => {
-        // Fallback sem crossOrigin (funciona em file://, mas pode travar export)
-        const img2 = new Image();
-        img2.onload = () => { overlayCache[file] = img2; res(img2); };
-        img2.onerror = () => rej(file);
-        img2.src = file + '?local=1';
-      };
-      img.src = file;
+
+      // Codifica espaços e caracteres especiais na URL
+      const urlCodificada = file.split('/').map(p => encodeURIComponent(p)).join('/');
+
+      const carregar = (url, comCors) => new Promise((ok, fail) => {
+        const img = new Image();
+        if (comCors) img.crossOrigin = 'anonymous';
+        img.onload  = () => ok(img);
+        img.onerror = () => fail(new Error('Erro ao carregar: ' + url));
+        img.src = url;
+      });
+
+      // Tenta: URL codificada com CORS → URL codificada sem CORS → URL original com CORS → URL original sem CORS
+      carregar(urlCodificada, true)
+        .catch(() => carregar(urlCodificada, false))
+        .catch(() => carregar(file, true))
+        .catch(() => carregar(file, false))
+        .then(img => { overlayCache[file] = img; res(img); })
+        .catch(err => { console.error('[overlay] Falha:', file, err); rej(err); });
     });
   }
 
