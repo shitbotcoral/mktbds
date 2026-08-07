@@ -367,6 +367,29 @@
     .btn-envio.ambos:active { box-shadow: none; }
     .btn-envio.ok { background: #1a7a3a !important; color: #fff !important; border-color: #1a7a3a !important; box-shadow: none !important; }
 
+    /* ── Upload de imagem ── */
+    .img-upload-area {
+      border: 1.5px dashed var(--border); border-radius: var(--radius);
+      padding: 14px; text-align: center; cursor: pointer;
+      background: var(--bg); transition: all 0.2s; position: relative;
+    }
+    .img-upload-area:hover { border-color: var(--accent); }
+    .img-upload-area.tem-img { border-color: #1a7a3a; border-style: solid; background: rgba(26,122,58,0.05); }
+    .img-upload-label { font-size: 11px; font-weight: 600; color: var(--muted); }
+    .img-upload-area.tem-img .img-upload-label { color: #1a7a3a; }
+    .img-preview {
+      display: none; width: 100%; max-height: 120px;
+      object-fit: cover; border-radius: 6px; margin-top: 8px;
+    }
+    .img-upload-area.tem-img .img-preview { display: block; }
+    .img-remover {
+      display: none; position: absolute; top: 6px; right: 6px;
+      background: rgba(224,48,48,0.8); border: none; border-radius: 50%;
+      width: 20px; height: 20px; color: #fff; cursor: pointer;
+      font-size: 11px; line-height: 20px; text-align: center;
+    }
+    .img-upload-area.tem-img .img-remover { display: block; }
+
     /* ── Toast ── */
     #toast {
       position: fixed; bottom: 24px; left: 50%;
@@ -463,6 +486,19 @@
       <div>
         <span class="field-label">Link (opcional)</span>
         <input type="url" id="fLink" class="input-field" placeholder="https://..." autocomplete="off" style="font-size:12px;">
+      </div>
+
+      <div>
+        <span class="field-label">Imagem para o Trello (opcional)</span>
+        <div class="img-upload-area" id="imgUploadArea" onclick="document.getElementById('fImagem').click()">
+          <button type="button" class="img-remover" onclick="event.stopPropagation(); removerImagem()">✕</button>
+          <div class="img-upload-label" id="imgUploadLabel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            Clique para anexar uma imagem
+          </div>
+          <img id="imgPreview" class="img-preview" alt="preview">
+        </div>
+        <input type="file" id="fImagem" accept="image/*" style="display:none">
       </div>
 
       <div class="btns-envio">
@@ -652,6 +688,42 @@
   function validarData(v) { return /^\d{2}\/\d{2}$/.test(v); }
   function validarHora(v) { return /^\d{2}H\d{2}$/.test(v); }
 
+  /* ── Upload de imagem ── */
+  function aplicarImagem(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    imagemAnexo = file;
+    document.getElementById('imgUploadArea').classList.add('tem-img');
+    document.getElementById('imgUploadLabel').textContent = file.name || 'imagem colada';
+    const reader = new FileReader();
+    reader.onload = e => { document.getElementById('imgPreview').src = e.target.result; };
+    reader.readAsDataURL(file);
+  }
+
+  // Seleção via clique
+  document.getElementById('fImagem').addEventListener('change', function() {
+    if (this.files[0]) aplicarImagem(this.files[0]);
+  });
+
+  // Cola via Ctrl+V em qualquer lugar da página
+  document.addEventListener('paste', function(e) {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) { aplicarImagem(file); break; }
+      }
+    }
+  });
+
+  function removerImagem() {
+    imagemAnexo = null;
+    document.getElementById('fImagem').value = '';
+    document.getElementById('imgUploadArea').classList.remove('tem-img');
+    document.getElementById('imgUploadLabel').innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Clique para anexar uma imagem`;
+    document.getElementById('imgPreview').src = '';
+  }
+
   /* ── Envio ── destino: 'planilha' | 'trello' | 'ambos' ── */
   async function enviar(destino) {
     const canal     = document.querySelector('input[name="canal"]:checked');
@@ -672,7 +744,7 @@
     if (!assunto)   { toast('Preencha o assunto!', 'erro'); return; }
 
     const criadoPor = sessionStorage.getItem('bdsUsuario') || 'desconhecido';
-    const post = { canal: canal.value, data, hora, titulo, assunto, categoria: categoria.value, direcionamento: dir, link, isPromo, trelloCardId: null, criadoPor };
+    const post = { canal: canal.value, data, hora, titulo, assunto, categoria: categoria.value, direcionamento: dir, link, imagem: imagemAnexo, isPromo, trelloCardId: null, criadoPor };
 
     // Desabilita todos os botões
     ['btnAmbos','btnPlanilha','btnTrello'].forEach(id => { const b = document.getElementById(id); if(b){ b.disabled = true; } });
@@ -743,6 +815,19 @@
         });
       }
 
+      // Anexa imagem se houver
+      if (post.imagem) {
+        try {
+          const fd = new FormData();
+          fd.append('key',   CFG.trelloKey);
+          fd.append('token', CFG.trelloToken);
+          fd.append('file',  post.imagem, post.imagem.name);
+          fd.append('name',  post.imagem.name);
+          fd.append('mimeType', post.imagem.type);
+          await fetch(`https://api.trello.com/1/cards/${card.id}/attachments`, { method: 'POST', body: fd });
+        } catch(e) { console.warn('Erro ao anexar imagem:', e); }
+      }
+
       toast('Card criado no Trello!', 'ok');
       return card.id;
     } catch(e) { toast('Erro de conexão com Trello', 'erro'); return null; }
@@ -751,6 +836,7 @@
   function limparForm() {
     document.querySelectorAll('input[name="canal"]').forEach(r => r.checked = false);
     document.querySelectorAll('input[name="categoria"]').forEach(r => r.checked = false);
+    removerImagem();
     ['fData','fHora','fTitulo','fAssunto','fDirecionamento','fLink'].forEach(id => {
       const el = document.getElementById(id);
       el.value = ''; el.classList.remove('erro');
@@ -841,6 +927,7 @@
   }
 
   let originalSnapshot = null; // guarda estado antes da edição
+  let imagemAnexo = null; // arquivo de imagem selecionado para o Trello
 
   function abrirEditar(idx) {
     editIdx = idx;
